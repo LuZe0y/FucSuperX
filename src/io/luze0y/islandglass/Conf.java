@@ -37,7 +37,8 @@ final class Conf {
         prefs = p;
         if (p == null || process == null) return;
         final String cmd = process.endsWith(":island") ? "cmd_restart_island"
-                : process.startsWith("com.android.settings") ? "cmd_restart_settings" : null;
+                : process.startsWith("com.android.settings") ? "cmd_restart_settings"
+                : "com.android.systemui".equals(process) ? "cmd_restart_systemui" : null;
         keep = (sp, k) -> {
             if (k == null) return;
             if (k.equals(cmd)) {

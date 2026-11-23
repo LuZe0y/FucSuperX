@@ -75,6 +75,13 @@ public class ModuleEntry extends XposedModule {
         Conf.init(this, processName); // 远程偏好：模块界面无 root 修改配置
         DEBUG = "1".equals(sysProp("persist.land.island_glass_debug", "0").trim());
         Conf.subscribe(this::onConfChanged); // 配置实时生效
+        if (SystemGlass.wants(processName)) {
+            try {
+                new SystemGlass(this).install(); // 系统液态玻璃调节（不含原子岛进程）
+            } catch (Throwable t) {
+                error("system glass install failed", t);
+            }
+        }
     }
 
     @Override

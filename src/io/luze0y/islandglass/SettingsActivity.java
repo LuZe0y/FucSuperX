@@ -45,8 +45,8 @@ public class SettingsActivity extends Activity {
     private static final PathInterpolator EASE_UP = new PathInterpolator(0.33f, 0f, 0.67f, 1f);
     private static final PathInterpolator EASE_SWITCH = new PathInterpolator(0.2f, 0f, 0.1f, 1f);
 
-    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island";
-    private boolean dark, island;
+    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass";
+    private boolean dark, island, sysglass;
     private int cBg, cCard, cTitle, cSummary, cHeading, cDivider, cAccent, cTrackOff, cRingOff, cPress, cChevron, cCircle, cIcon;
 
     private FrameLayout frame;
@@ -73,6 +73,7 @@ public class SettingsActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(b);
         island = PAGE_ISLAND.equals(getIntent().getStringExtra(EXTRA_PAGE));
+        sysglass = PAGE_SYSGLASS.equals(getIntent().getStringExtra(EXTRA_PAGE));
         palette();
         Window w = getWindow();
         w.setStatusBarColor(Color.TRANSPARENT);
@@ -130,6 +131,7 @@ public class SettingsActivity extends Activity {
         setContentView(frame);
 
         if (island) buildIsland();
+        else if (sysglass) buildSysGlass();
         else buildMain();
     }
 
@@ -139,6 +141,8 @@ public class SettingsActivity extends Activity {
         Card c = card();
         c.link("原子岛", "玻璃材质、深浅色反相、高级参数", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_ISLAND)));
+        c.link("系统液态玻璃", "控制中心、通知中心、通知、锁屏通知等（不含原子岛）", () ->
+                startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SYSGLASS)));
 
         heading("设置", true);
         c = card();
@@ -180,6 +184,39 @@ public class SettingsActivity extends Activity {
         footer(Prop.remote()
                 ? "点按滑块右侧的数值可恢复默认。修改即时生效，无需 root。"
                 : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启原子岛进程。");
+    }
+
+    /** 系统液态玻璃：SystemUI 内除原子岛外的全部材质。全部为倍数，1.00 = 系统原值。 */
+    private void buildSysGlass() {
+        heading("总开关", false);
+        Card c = card();
+        c.toggle("调节系统液态玻璃", "关闭后完全使用系统原版参数", "persist.land.sysglass", "1");
+
+        heading("液态玻璃材质", true);
+        c = card();
+        c.slider("材质强度", "染色层不透明度倍数，越小越通透", "persist.land.sysglass_tint", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("模糊半径", "倍数", "persist.land.sysglass_blur", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("饱和度", "倍数", "persist.land.sysglass_sat", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("整体不透明度", "倍数，1.00 为系统原值", "persist.land.sysglass_alpha", "1", 0f, 1f, 0.05f, false, 2);
+
+        heading("样式 0（控制中心等三层材质）", true);
+        c = card();
+        c.slider("材质强度", "染色层不透明度倍数", "persist.land.sysglass_zero_tint", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("模糊半径", "倍数", "persist.land.sysglass_zero_blur", "1", 0f, 3f, 0.05f, false, 2);
+
+        heading("高级参数", true);
+        c = card();
+        c.slider("折射强度", "倍数", "persist.land.sysglass_refr", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("折射范围", "倍数", "persist.land.sysglass_refr_r", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("边缘高光强度", "倍数", "persist.land.sysglass_light", "1", 0f, 3f, 0.05f, false, 2);
+        c.slider("边缘高光宽度", "倍数", "persist.land.sysglass_light_w", "1", 0f, 3f, 0.05f, false, 2);
+
+        heading("生效", true);
+        c = card();
+        c.action("重启 SystemUI", "已显示的界面需重新创建才会套用新参数", "cmd_restart_systemui",
+                "pkill -f com.android.systemui || killall com.android.systemui");
+        footer("所有数值为相对系统原值的倍数，点按滑块右侧数值恢复 1.00。新参数在材质下次创建时生效（重新下拉控制中心 / 通知），"
+                + "已常驻的界面需重启 SystemUI。原子岛不受本页影响。");
     }
 
     private void footer(String s) {
@@ -225,7 +262,7 @@ public class SettingsActivity extends Activity {
         bl.leftMargin = dp(20);
         bar.addView(backBtn, bl);
 
-        TextView title = text(island ? "原子岛" : "FucSuperX", 20, cTitle, true);
+        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : "FucSuperX", 20, cTitle, true);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
         tl.leftMargin = dp(68);
         bar.addView(title, tl);
