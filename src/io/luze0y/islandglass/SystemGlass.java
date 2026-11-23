@@ -4,6 +4,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -31,6 +33,7 @@ import io.github.libxposed.api.XposedModule;
  *    由 2 统一缩放一次，避免双重生效。
  * 4. 实时生效：记录每个材质最近一次 setMaterialForce / setMaterialCustomized 的原始参数，
  *    配置变更后在 View 线程重放一遍，已显示的界面立即套用新倍数，无需重启 SystemUI。
+ * 5. 排除音量面板（按键调出的 VOLUME_OVERLAY 窗口）：其材质保持系统原样，不缩放、不记录。
  *
  * 键（远程偏好 / persist.land.*），倍数 1 = 系统原值：
  *   sysglass             1 开 / 0 关（关闭即完全不干预）
@@ -54,6 +57,8 @@ final class SystemGlass {
             "mAfterBackgroundBlurGeometry", "mAfterForegroundBlurGeometry"};
     private static final ThreadLocal<Boolean> IN_PARAMS = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Integer> C_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Boolean> SKIP = ThreadLocal.withInitial(() -> false);
+    private static final int TYPE_VOLUME_OVERLAY = 2020; // WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY
 
     /** 每个 VivoViewImpl 各位置最近一次的原始调用（缩放前）。 */
     private static final class Rec {
@@ -88,6 +93,7 @@ final class SystemGlass {
     private Method mForce;
 
     private final Map<Object, Rec> recs = new WeakHashMap<>();
+    private final Map<Object, Boolean> volImpls = new WeakHashMap<>(); // 已确认属于音量面板的材质
     private final Map<Object, GeoState> geoStates = new WeakHashMap<>();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable replayAll = this::replayAll;
@@ -144,7 +150,7 @@ final class SystemGlass {
         module.hook(resolve).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
             Object g = chain.getArg(0);
             Object s = chain.getArg(1);
-            if (IN_PARAMS.get() || g == null || !(s instanceof Integer)) return chain.proceed();
+            if (IN_PARAMS.get() || SKIP.get() || g == null || !(s instanceof Integer)) return chain.proceed();
             int style = (Integer) s;
             if (style < GLASS_MIN || style > GLASS_MAX) return chain.proceed();
             Object r = chain.proceed();
@@ -232,6 +238,7 @@ final class SystemGlass {
                     int pos = 0;
                     if (n == 14 && chain.getArg(13) instanceof Integer) pos = (Integer) chain.getArg(13);
                     Object self = chain.getThisObject();
+                    if (excluded(self)) return skipping(chain);
                     int style = styleOf(self, pos);
                     if (style < 0) style = lastStyle(self, pos);
                     boolean glass = style >= GLASS_MIN && style <= GLASS_MAX;
@@ -262,6 +269,12 @@ final class SystemGlass {
         mForce = force;
         module.hook(force).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
             Object[] args = chain.getArgs().toArray();
+            Object me = chain.getThisObject();
+            if (excluded(me)) {
+                Object r0 = skipping(chain);
+                if (args[2] instanceof Integer) clearRec(me, (Integer) args[2]);
+                return r0;
+            }
             Object r = chain.proceed();
             if (args[0] instanceof Integer && args[2] instanceof Integer) {
                 int style = (Integer) args[0], pos = (Integer) args[2];
@@ -273,6 +286,41 @@ final class SystemGlass {
             }
             return r;
         });
+    }
+
+    /** 材质所在 View 是否位于音量面板窗口。确认为是后缓存；未挂到窗口时无法判断，按否处理。 */
+    private boolean excluded(Object impl) {
+        synchronized (volImpls) {
+            if (volImpls.containsKey(impl)) return true;
+        }
+        try {
+            Object vv = fView == null ? null : fView.get(impl);
+            if (!(vv instanceof View)) return false;
+            View v = (View) vv;
+            ViewGroup.LayoutParams lp = v.getRootView().getLayoutParams();
+            if (!(lp instanceof WindowManager.LayoutParams)) return false;
+            if (((WindowManager.LayoutParams) lp).type != TYPE_VOLUME_OVERLAY) return false;
+            synchronized (volImpls) {
+                volImpls.put(impl, true);
+            }
+            synchronized (recs) {
+                recs.remove(impl);
+            }
+            Log.i(TAG, "system glass skip volume panel: " + v.getClass().getName());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static Object skipping(io.github.libxposed.api.XposedInterface.Chain chain) throws Throwable {
+        boolean prev = SKIP.get();
+        SKIP.set(true);
+        try {
+            return chain.proceed();
+        } finally {
+            SKIP.set(prev);
+        }
     }
 
     private int styleOf(Object impl, int pos) {
