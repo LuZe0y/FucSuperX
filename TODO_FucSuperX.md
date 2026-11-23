@@ -9,4 +9,4 @@
   - 页面背景、大标题栏、圆角白卡片、列表项高度/字号/颜色、分割线、开关（vmovebool OS7 配色）
   - 日间/夜间两套颜色取自 res_dump.txt 的 vos7 token
   - 把现有 persist.land.* 配置项迁移到新界面
-- [ ] 7. 构建、安装、重启 com.android.settings，截图对比设置首页 / Wi-Fi 页，修正间距
+- [x] 7. 构建、安装、重启 com.android.settings，截图对比设置首页 / Wi-Fi 页，修正间距

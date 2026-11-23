@@ -141,7 +141,7 @@ public class SettingsActivity extends Activity {
         Card c = card();
         c.link("原子岛", "玻璃材质、深浅色反相、高级参数", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_ISLAND)));
-        c.link("系统液态玻璃", "控制中心、通知中心、通知、锁屏通知等（不含原子岛）", () ->
+        c.link("系统液态玻璃", "控制中心、通知、锁屏通知等，不含原子岛", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SYSGLASS)));
 
         heading("设置", true);
@@ -211,12 +211,15 @@ public class SettingsActivity extends Activity {
         c.slider("边缘高光强度", "倍数", "persist.land.sysglass_light", "1", 0f, 3f, 0.05f, false, 2);
         c.slider("边缘高光宽度", "倍数", "persist.land.sysglass_light_w", "1", 0f, 3f, 0.05f, false, 2);
 
-        heading("生效", true);
-        c = card();
-        c.action("重启 SystemUI", "已显示的界面需重新创建才会套用新参数", "cmd_restart_systemui",
-                "pkill -f com.android.systemui || killall com.android.systemui");
-        footer("所有数值为相对系统原值的倍数，点按滑块右侧数值恢复 1.00。新参数在材质下次创建时生效（重新下拉控制中心 / 通知），"
-                + "已常驻的界面需重启 SystemUI。原子岛不受本页影响。");
+        if (!Prop.remote()) { // root 回退模式：配置不会推送到 SystemUI，仍需重启
+            heading("生效", true);
+            c = card();
+            c.action("重启 SystemUI", "root 模式下修改后需重启才会套用", "cmd_restart_systemui",
+                    "kill -9 $(pidof com.android.systemui)");
+        }
+        footer(Prop.remote()
+                ? "所有数值为相对系统原值的倍数，点按滑块右侧数值恢复 1.00。修改即时生效，无需 root。原子岛不受本页影响。"
+                : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。原子岛不受本页影响。");
     }
 
     private void footer(String s) {
@@ -262,9 +265,10 @@ public class SettingsActivity extends Activity {
         bl.leftMargin = dp(20);
         bar.addView(backBtn, bl);
 
-        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : "FucSuperX", 20, cTitle, true);
+        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : "FucSuperX", 18, cTitle, true);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
         tl.leftMargin = dp(68);
+        tl.topMargin = dp(2); // 与系统 OriginUI 顶栏标题基线对齐
         bar.addView(title, tl);
 
         bar.post(this::applyBarMaterial);

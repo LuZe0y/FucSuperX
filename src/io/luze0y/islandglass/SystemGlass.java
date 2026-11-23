@@ -1,10 +1,18 @@
 package io.luze0y.islandglass;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.view.View;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 import io.github.libxposed.api.XposedInterface.ExceptionMode;
 import io.github.libxposed.api.XposedModule;
@@ -14,12 +22,15 @@ import io.github.libxposed.api.XposedModule;
  * （控制中心、通知中心、通知、锁屏通知等）。原子岛跑在 :island 独立进程，不安装本 Hook。
  *
  * 1. BlurMaterial.resolveGlassEffectBlurGeometryByStyle(geometry, style)：液态玻璃预设 401~434
- *    解析完成后按倍数缩放模糊 / 饱和 / 染色层 / 折射 / 边缘高光。只缩放本次解析写入的字段，
- *    同一几何被重复解析时不会叠加。
- * 2. VivoViewImpl.setMaterialCustomized(10 参 / 14 参)：所有自定义材质（含 Bundle、13 参入口）的汇合点。
- *    View 当前 style 为 401~434 用液态玻璃倍数，style 0（控制中心等三层材质）用「样式 0」倍数，其他预设不动。
+ *    解析后按倍数缩放模糊 / 饱和 / 染色层 / 折射 / 边缘高光。每个几何对象记住「原值」和「上次写出值」：
+ *    解析器没重写的字段从原值重新计算，所以重复解析不会叠乘，倍数改回 1 也能恢复原样。
+ * 2. VivoViewImpl.setMaterialCustomized(10 参 / 14 参)：所有自定义材质的汇合点（重载互相转调时只处理最外层）。
+ *    style 401~434 用液态玻璃倍数，style 0（控制中心等三层材质）用「样式 0」倍数，其他预设不动。
+ *    取不到当前 style 时用该位置最近一次 setMaterialForce 的 style 兜底。
  * 3. getGlassEffectParamsByStyle 内部解析不缩放：OriginUI 取这份参数后会走 setMaterialCustomized(Bundle)，
  *    由 2 统一缩放一次，避免双重生效。
+ * 4. 实时生效：记录每个材质最近一次 setMaterialForce / setMaterialCustomized 的原始参数，
+ *    配置变更后在 View 线程重放一遍，已显示的界面立即套用新倍数，无需重启 SystemUI。
  *
  * 键（远程偏好 / persist.land.*），倍数 1 = 系统原值：
  *   sysglass             1 开 / 0 关（关闭即完全不干预）
@@ -32,6 +43,7 @@ import io.github.libxposed.api.XposedModule;
 final class SystemGlass {
     private static final String TAG = "FucSuperX";
     private static final int GLASS_MIN = 401, GLASS_MAX = 434;
+    private static final int MAX_POS = 8;
     // 与 factor() 下标一一对应
     private static final String[] GEO = {"mBlurRadius", "mSaturation", "mMaskOpacity_1", "mMaskOpacity_2",
             "mMaskOpacity_3", "mFinalOpacity", "mRefractionIntensity", "mRefractionRange", "mLight1Intensity",
@@ -40,6 +52,29 @@ final class SystemGlass {
     private static final String[] POS_GEO = {"mBlurGeometry", "mForegroundBlurGeometry", "mBackgroundBlurGeometry",
             "mAfterBackgroundBlurGeometry", "mAfterForegroundBlurGeometry"};
     private static final ThreadLocal<Boolean> IN_PARAMS = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Integer> C_DEPTH = ThreadLocal.withInitial(() -> 0);
+
+    /** 每个 VivoViewImpl 各位置最近一次的原始调用（缩放前）。 */
+    private static final class Rec {
+        final int[] style = new int[MAX_POS];
+        final Object[][] force = new Object[MAX_POS][];
+        final Method[] cm = new Method[MAX_POS];
+        final Object[][] cargs = new Object[MAX_POS][];
+
+        Rec() {
+            Arrays.fill(style, -1);
+        }
+    }
+
+    /** 几何对象各字段的原值与上次写出值。 */
+    private static final class GeoState {
+        final float[] orig, out;
+
+        GeoState(int n) {
+            orig = new float[n];
+            out = new float[n];
+        }
+    }
 
     private final XposedModule module;
     private volatile boolean on = true;
@@ -47,8 +82,14 @@ final class SystemGlass {
     private volatile float zTint = 1, zBlur = 1;
 
     private Field[] geo;
-    private Field fStyle, fSfGeo, fContentType;
+    private Field fStyle, fSfGeo, fContentType, fView;
     private final Field[] posGeo = new Field[POS_GEO.length];
+    private Method mForce;
+
+    private final Map<Object, Rec> recs = new WeakHashMap<>();
+    private final Map<Object, GeoState> geoStates = new WeakHashMap<>();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable replayAll = this::replayAll;
 
     SystemGlass(XposedModule module) {
         this.module = module;
@@ -66,6 +107,8 @@ final class SystemGlass {
             if (k != null && k.startsWith("sysglass")) {
                 load();
                 Log.i(TAG, "system glass config changed: " + k);
+                main.removeCallbacks(replayAll); // 连续拖动滑块时合并为一次重放
+                main.postDelayed(replayAll, 80);
             }
         });
 
@@ -95,12 +138,11 @@ final class SystemGlass {
         module.hook(resolve).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
             Object g = chain.getArg(0);
             Object s = chain.getArg(1);
-            if (!on || IN_PARAMS.get() || g == null || !(s instanceof Integer) || glassIdentity()) return chain.proceed();
+            if (IN_PARAMS.get() || g == null || !(s instanceof Integer)) return chain.proceed();
             int style = (Integer) s;
             if (style < GLASS_MIN || style > GLASS_MAX) return chain.proceed();
-            float[] before = snapshot(g);
             Object r = chain.proceed();
-            scale(g, before);
+            scale(g);
             return r;
         });
 
@@ -116,16 +158,17 @@ final class SystemGlass {
             });
         }
 
-        int n = hookCustomized();
-        Log.i(TAG, "system glass hooks installed (customized x" + n + ")");
-    }
-
-    private int hookCustomized() throws Throwable {
         Class<?> vi = Class.forName("android.view.VivoViewImpl");
         fSfGeo = findField(vi, "mSFBlurGeometryCache");
         fContentType = findField(vi, "mMaterialContentType");
+        fView = findField(vi, "mView");
         for (int i = 0; i < POS_GEO.length; i++) posGeo[i] = findField(vi, POS_GEO[i]);
+        int n = hookCustomized(vi);
+        hookForce(vi);
+        Log.i(TAG, "system glass hooks installed (customized x" + n + ", live reapply)");
+    }
 
+    private int hookCustomized(Class<?> vi) {
         int count = 0;
         for (Method x : vi.getDeclaredMethods()) {
             if (!x.getName().equals("setMaterialCustomized")) continue;
@@ -133,32 +176,57 @@ final class SystemGlass {
             if ((n != 10 && n != 14) || x.getParameterTypes()[0] != float.class) continue;
             final int fin = n == 10 ? 8 : 11;
             final int[] ops = n == 10 ? new int[]{3, 6} : new int[]{3, 6, 9};
+            final Method mx = x;
+            mx.setAccessible(true);
             module.hook(x).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
-                if (!on) return chain.proceed();
-                int pos = 0;
-                if (n == 14 && chain.getArg(13) instanceof Integer) pos = (Integer) chain.getArg(13);
-                int style = styleOf(chain.getThisObject(), pos);
-                float kt, kb;
-                if (style >= GLASS_MIN && style <= GLASS_MAX) {
-                    kt = tint;
-                    kb = blur;
-                } else if (style == 0) {
-                    kt = zTint;
-                    kb = zBlur;
-                } else {
-                    return chain.proceed();
+                int depth = C_DEPTH.get();
+                if (depth > 0) return chain.proceed(); // 外层已处理，重载内部转调不再缩放
+                C_DEPTH.set(1);
+                try {
+                    int pos = 0;
+                    if (n == 14 && chain.getArg(13) instanceof Integer) pos = (Integer) chain.getArg(13);
+                    Object self = chain.getThisObject();
+                    int style = styleOf(self, pos);
+                    if (style < 0) style = lastStyle(self, pos);
+                    boolean glass = style >= GLASS_MIN && style <= GLASS_MAX;
+                    if (!glass && style != 0) return chain.proceed();
+                    recordCustom(self, pos, mx, chain.getArgs().toArray());
+                    if (!on) return chain.proceed();
+                    float kt = glass ? tint : zTint, kb = glass ? blur : zBlur;
+                    if (kt == 1f && kb == 1f && sat == 1f && alpha == 1f) return chain.proceed();
+                    Object[] a = chain.getArgs().toArray();
+                    a[0] = (Float) a[0] * kb;
+                    a[1] = (Float) a[1] * sat;
+                    for (int i : ops) a[i] = Math.min(1f, (Float) a[i] * kt);
+                    a[fin] = Math.min(1f, (Float) a[fin] * alpha);
+                    return chain.proceed(a);
+                } finally {
+                    C_DEPTH.set(depth);
                 }
-                if (kt == 1f && kb == 1f && sat == 1f && alpha == 1f) return chain.proceed();
-                Object[] a = chain.getArgs().toArray();
-                a[0] = (Float) a[0] * kb;
-                a[1] = (Float) a[1] * sat;
-                for (int i : ops) a[i] = Math.min(1f, (Float) a[i] * kt);
-                a[fin] = Math.min(1f, (Float) a[fin] * alpha);
-                return chain.proceed(a);
             });
             count++;
         }
         return count;
+    }
+
+    /** setMaterial 的汇合点：只记录（用于 style 兜底和实时重放），不改参数。 */
+    private void hookForce(Class<?> vi) throws Throwable {
+        Method force = vi.getDeclaredMethod("setMaterialForce", int.class, int.class, int.class);
+        force.setAccessible(true);
+        mForce = force;
+        module.hook(force).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Object[] args = chain.getArgs().toArray();
+            Object r = chain.proceed();
+            if (args[0] instanceof Integer && args[2] instanceof Integer) {
+                int style = (Integer) args[0], pos = (Integer) args[2];
+                Object self = chain.getThisObject();
+                if (Boolean.TRUE.equals(r) && (style == 0 || (style >= GLASS_MIN && style <= GLASS_MAX)))
+                    recordForce(self, pos, args, style);
+                else
+                    clearRec(self, pos);
+            }
+            return r;
+        });
     }
 
     private int styleOf(Object impl, int pos) {
@@ -176,37 +244,32 @@ final class SystemGlass {
         }
     }
 
-    private float[] snapshot(Object g) {
-        float[] v = new float[geo.length];
-        for (int i = 0; i < geo.length; i++) {
-            try {
-                v[i] = geo[i] == null ? Float.NaN : geo[i].getFloat(g);
-            } catch (Throwable t) {
-                v[i] = Float.NaN;
+    /** 按「原值 × 当前倍数」写回；解析器没重写的字段（仍是上次写出值）从记住的原值重新计算。 */
+    private void scale(Object g) {
+        synchronized (geoStates) {
+            GeoState st = geoStates.get(g);
+            boolean fresh = st == null;
+            if (fresh) st = new GeoState(geo.length);
+            for (int i = 0; i < geo.length; i++) {
+                Field f = geo[i];
+                if (f == null) continue;
+                try {
+                    float now = f.getFloat(g);
+                    float orig = !fresh && Float.compare(now, st.out[i]) == 0 ? st.orig[i] : now;
+                    float v = orig * factor(i);
+                    if ((i >= 2 && i <= 5) || i == 8) v = Math.min(1f, v); // 不透明度 / 高光强度上限 1
+                    if (Float.compare(v, now) != 0) f.setFloat(g, v);
+                    st.orig[i] = orig;
+                    st.out[i] = v;
+                } catch (Throwable ignored) {
+                }
             }
-        }
-        return v;
-    }
-
-    /** 只缩放解析器本次写过（值有变化）的字段：未写的字段保持原样，重复解析不会叠乘。 */
-    private void scale(Object g, float[] before) {
-        for (int i = 0; i < geo.length; i++) {
-            Field f = geo[i];
-            if (f == null) continue;
-            try {
-                float now = f.getFloat(g);
-                if (Float.compare(now, before[i]) == 0) continue;
-                float k = factor(i);
-                if (k == 1f) continue;
-                float v = now * k;
-                if ((i >= 2 && i <= 5) || i == 8) v = Math.min(1f, v); // 不透明度 / 高光强度上限 1
-                f.setFloat(g, v);
-            } catch (Throwable ignored) {
-            }
+            if (fresh) geoStates.put(g, st);
         }
     }
 
     private float factor(int i) {
+        if (!on) return 1f;
         switch (i) {
             case 0: return blur;
             case 1: return sat;
@@ -220,9 +283,103 @@ final class SystemGlass {
         }
     }
 
-    private boolean glassIdentity() {
-        return tint == 1f && blur == 1f && sat == 1f && alpha == 1f && refr == 1f && refrR == 1f
-                && light == 1f && lightW == 1f;
+    // ---------------- 记录与实时重放 ----------------
+
+    private Rec rec(Object impl) {
+        Rec r = recs.get(impl);
+        if (r == null) recs.put(impl, r = new Rec());
+        return r;
+    }
+
+    private void recordForce(Object impl, int pos, Object[] args, int style) {
+        if (pos < 0 || pos >= MAX_POS) return;
+        synchronized (recs) {
+            Rec r = rec(impl);
+            r.style[pos] = style;
+            r.force[pos] = args;
+            r.cm[pos] = null; // 新预设：之前的自定义参数作废
+            r.cargs[pos] = null;
+        }
+    }
+
+    private void recordCustom(Object impl, int pos, Method m, Object[] args) {
+        if (pos < 0 || pos >= MAX_POS) return;
+        synchronized (recs) {
+            Rec r = rec(impl);
+            r.cm[pos] = m;
+            r.cargs[pos] = args;
+        }
+    }
+
+    private void clearRec(Object impl, int pos) {
+        if (pos < 0 || pos >= MAX_POS) return;
+        synchronized (recs) {
+            Rec r = recs.get(impl);
+            if (r == null) return;
+            r.style[pos] = -1;
+            r.force[pos] = null;
+            r.cm[pos] = null;
+            r.cargs[pos] = null;
+        }
+    }
+
+    private int lastStyle(Object impl, int pos) {
+        if (pos < 0 || pos >= MAX_POS) return -1;
+        synchronized (recs) {
+            Rec r = recs.get(impl);
+            return r == null ? -1 : r.style[pos];
+        }
+    }
+
+    /** 对所有已记录的材质重走一遍原始调用：经过上面的 Hook 后自然套用新倍数。 */
+    private void replayAll() {
+        List<Object> impls = new ArrayList<>();
+        List<Rec> snaps = new ArrayList<>();
+        synchronized (recs) {
+            for (Map.Entry<Object, Rec> e : recs.entrySet()) {
+                Rec src = e.getValue(), cp = new Rec();
+                boolean any = false;
+                for (int p = 0; p < MAX_POS; p++) {
+                    cp.style[p] = src.style[p];
+                    cp.force[p] = src.force[p];
+                    cp.cm[p] = src.cm[p];
+                    cp.cargs[p] = src.cargs[p];
+                    any |= src.force[p] != null || src.cargs[p] != null;
+                }
+                if (any) {
+                    impls.add(e.getKey());
+                    snaps.add(cp);
+                }
+            }
+        }
+        int n = 0;
+        for (int i = 0; i < impls.size(); i++) {
+            Object impl = impls.get(i);
+            Rec r = snaps.get(i);
+            Object vv;
+            try {
+                vv = fView == null ? null : fView.get(impl);
+            } catch (Throwable t) {
+                vv = null;
+            }
+            if (!(vv instanceof View)) continue;
+            View v = (View) vv;
+            v.post(() -> replay(impl, v, r));
+            n++;
+        }
+        Log.i(TAG, "system glass live reapply x" + n);
+    }
+
+    private void replay(Object impl, View v, Rec r) {
+        for (int p = 0; p < MAX_POS; p++) {
+            try {
+                if (r.force[p] != null && mForce != null) mForce.invoke(impl, r.force[p]);
+                if (r.cargs[p] != null && r.cm[p] != null) r.cm[p].invoke(impl, r.cargs[p]);
+            } catch (Throwable t) {
+                Log.w(TAG, "system glass reapply failed", t);
+            }
+        }
+        v.invalidate();
     }
 
     private void load() {
