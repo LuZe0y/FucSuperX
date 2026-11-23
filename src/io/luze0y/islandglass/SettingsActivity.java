@@ -164,6 +164,8 @@ public class SettingsActivity extends Activity {
         c = card();
         c.segmented("材质 contentType", null, "persist.land.island_glass_ct", "2",
                 new String[]{"0", "1", "2", "3"}, new String[]{"0", "1", "2", "3"});
+        c.segmented("材质刷新率", "动画有撕裂感时可尝试固定为屏幕刷新率", "persist.land.island_glass_fps", "0",
+                new String[]{"0", "60", "90", "120", "144"}, new String[]{"自动", "60", "90", "120", "144"});
         c.slider("模糊半径", "0 为不模糊", "persist.land.island_glass_blur", "0", 0f, 0.3f, 0.005f, false, 3);
         c.slider("折射强度", "拖到最左端为材质默认值", "persist.land.island_glass_refr", "-1", 0f, 300f, 5f, true, 0);
         c.slider("折射范围", "拖到最左端为材质默认值", "persist.land.island_glass_refr_r", "-1", 0f, 120f, 1f, true, 0);

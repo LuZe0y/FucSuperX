@@ -263,11 +263,11 @@ public class ModuleEntry extends XposedModule {
                 Object anim = chain.getThisObject();
                 updateDot(anim); // 先于原版绘制判定，让本帧 GlassPaint 就画对颜色
                 updateStroke(anim);
+                syncRegion(anim);           // 材质区域跟随胶囊：放在绘制前，与本帧胶囊形状同帧提交，避免玻璃落后一帧
                 Object r = chain.proceed();
                 fixOpaqueBackgrounds(anim); // 音乐卡片 #background_show 黑底
                 fixEffectLights(anim);      // 材质可见时隐藏两层光效
                 fixLumaKey(anim);           // 充电 PAG 去黑底
-                syncRegion(anim);           // 材质区域跟随胶囊
                 reviveStuckBlur(anim);
                 updateTextInvert(anim);     // 小胶囊文字随背景亮度反色
                 return r;
@@ -681,6 +681,7 @@ public class ModuleEntry extends XposedModule {
         try {
             Object ok = setMaterial.invoke(v, style, contentType());
             if (Boolean.TRUE.equals(ok)) {
+                applyFps(v);
                 if (style == STYLE_FOLDER) applyFolderRecipe(v);
                 else tuneEdgeLight(v);
                 Integer prev = applied.put(v, style);
@@ -772,7 +773,6 @@ public class ModuleEntry extends XposedModule {
         Class<?> f = float.class, i = int.class;
         IN_RECIPE.set(true);
         try {
-            tryInvoke(v, "setMaterialFPS", new Class<?>[]{i}, 120);
             float ri = Float.parseFloat(sysProp("persist.land.island_glass_refr", "-1").trim());
             float rr = Float.parseFloat(sysProp("persist.land.island_glass_refr_r", "-1").trim());
             tryInvoke(v, "setGlassEffectCustomized", new Class<?>[]{f, f}, ri >= 0 ? ri : 140f, rr >= 0 ? rr : 60f);
@@ -800,6 +800,24 @@ public class ModuleEntry extends XposedModule {
         } finally {
             IN_RECIPE.set(false);
         }
+    }
+
+    // 材质背景的采样刷新率。409~412 不设时走系统默认（可能低于屏幕刷新率），胶囊形状按屏幕帧率动、
+    // 玻璃背景按较低帧率刷新，二者不同步就会出现撕裂感；高刷设置不同的机器表现不一样。
+    //   persist.land.island_glass_fps   0=跟随当前屏幕模式（默认），或固定 60/90/120/144
+    private void applyFps(View v) {
+        int fps = 0;
+        try {
+            fps = Integer.parseInt(sysProp("persist.land.island_glass_fps", "0").trim());
+        } catch (Throwable ignored) {
+        }
+        if (fps <= 0) {
+            android.view.Display d = v.getDisplay();
+            fps = d == null ? 120 : Math.round(d.getMode().getRefreshRate());
+        }
+        fps = Math.max(30, Math.min(144, fps));
+        tryInvoke(v, "setMaterialFPS", new Class<?>[]{int.class}, fps);
+        if (DEBUG) diag("material fps=" + fps);
     }
 
     private void tryInvoke(View v, String name, Class<?>[] types, Object... args) {
