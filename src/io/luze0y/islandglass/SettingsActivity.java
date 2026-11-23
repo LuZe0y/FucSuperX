@@ -204,6 +204,10 @@ public class SettingsActivity extends Activity {
         c.slider("材质强度", "染色层不透明度倍数", "persist.land.sysglass_zero_tint", "1", 0f, 3f, 0.05f, false, 2);
         c.slider("模糊半径", "倍数", "persist.land.sysglass_zero_blur", "1", 0f, 3f, 0.05f, false, 2);
 
+        heading("背景", true);
+        c = card();
+        c.slider("背景模糊", "下拉通知 / 控制中心时背后全屏模糊的倍数", "persist.land.sysglass_bg_blur", "1", 0f, 5f, 0.05f, false, 2);
+
         heading("高级参数", true);
         c = card();
         c.slider("折射强度", "倍数", "persist.land.sysglass_refr", "1", 0f, 3f, 0.05f, false, 2);

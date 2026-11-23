@@ -39,6 +39,7 @@ import io.github.libxposed.api.XposedModule;
  *   sysglass_refr        折射强度                       sysglass_refr_r   折射范围
  *   sysglass_light       边缘高光强度                   sysglass_light_w  边缘高光宽度
  *   sysglass_zero_tint   样式 0 染色层不透明度          sysglass_zero_blur 样式 0 模糊半径
+ *   sysglass_bg_blur     下拉通知 / 控制中心背后的全屏背景模糊（VivoDynamicBlurBg.setBlurRadius，0~1 比例，结果上限 1）
  */
 final class SystemGlass {
     private static final String TAG = "FucSuperX";
@@ -90,6 +91,11 @@ final class SystemGlass {
     private final Map<Object, GeoState> geoStates = new WeakHashMap<>();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable replayAll = this::replayAll;
+
+    // 下拉面板背景模糊：VivoDynamicBlurBg 实例 -> 最近一次系统传入的原始值
+    private volatile float bgBlur = 1;
+    private final Map<Object, Float> bgLast = new WeakHashMap<>();
+    private volatile Method mBgSet;
 
     SystemGlass(XposedModule module) {
         this.module = module;
@@ -166,6 +172,46 @@ final class SystemGlass {
         int n = hookCustomized(vi);
         hookForce(vi);
         Log.i(TAG, "system glass hooks installed (customized x" + n + ", live reapply)");
+    }
+
+    /** SystemUI 主进程 ClassLoader 就绪后安装：下拉面板背景模糊倍数。 */
+    void installSysui(ClassLoader cl) throws Throwable {
+        Class<?> c = cl.loadClass("com.vivo.systemui.statusbar.panel.background.VivoDynamicBlurBg");
+        Method m = c.getDeclaredMethod("setBlurRadius", float.class);
+        m.setAccessible(true);
+        module.hook(m).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Object a = chain.getArg(0);
+            if (!(a instanceof Float)) return chain.proceed();
+            float raw = (Float) a;
+            synchronized (bgLast) {
+                bgLast.put(chain.getThisObject(), raw);
+            }
+            float k = on ? bgBlur : 1f;
+            if (k == 1f || raw <= 0f) return chain.proceed();
+            return chain.proceed(new Object[]{Math.min(1f, raw * k)});
+        });
+        mBgSet = m;
+        Log.i(TAG, "system glass bg blur hook installed");
+    }
+
+    private void replayBg() {
+        Method m = mBgSet;
+        if (m == null) return;
+        List<Object> objs = new ArrayList<>();
+        List<Float> vals = new ArrayList<>();
+        synchronized (bgLast) {
+            for (Map.Entry<Object, Float> e : bgLast.entrySet()) {
+                objs.add(e.getKey());
+                vals.add(e.getValue());
+            }
+        }
+        for (int i = 0; i < objs.size(); i++) {
+            try {
+                m.invoke(objs.get(i), vals.get(i)); // 经过上面的 Hook，按新倍数重新设置
+            } catch (Throwable t) {
+                Log.w(TAG, "system glass bg blur reapply failed", t);
+            }
+        }
     }
 
     private int hookCustomized(Class<?> vi) {
@@ -367,7 +413,8 @@ final class SystemGlass {
             v.post(() -> replay(impl, v, r));
             n++;
         }
-        Log.i(TAG, "system glass live reapply x" + n);
+        replayBg();
+        Log.i(TAG, "system glass live reapply x" + n + ", bg x" + bgLast.size());
     }
 
     private void replay(Object impl, View v, Rec r) {
@@ -394,6 +441,7 @@ final class SystemGlass {
         lightW = num("sysglass_light_w", 3f);
         zTint = num("sysglass_zero_tint", 3f);
         zBlur = num("sysglass_zero_blur", 3f);
+        bgBlur = num("sysglass_bg_blur", 5f);
     }
 
     private static float num(String key, float max) {

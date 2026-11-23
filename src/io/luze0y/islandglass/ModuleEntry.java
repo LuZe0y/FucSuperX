@@ -59,6 +59,7 @@ public class ModuleEntry extends XposedModule {
     // ContainerAnimatorCommon 反射缓存
     private Field fBlurVisible, fPaint, fMainCapsule;
     private Method mSysNeedBlur, mGetDisplayRect, mIsAppTransition;
+    private SystemGlass systemGlass;
 
     static {
         Log.e(TAG, "class loaded");
@@ -77,7 +78,7 @@ public class ModuleEntry extends XposedModule {
         Conf.subscribe(this::onConfChanged); // 配置实时生效
         if (SystemGlass.wants(processName)) {
             try {
-                new SystemGlass(this).install(); // 系统液态玻璃调节（不含原子岛进程）
+                (systemGlass = new SystemGlass(this)).install(); // 系统液态玻璃调节（不含原子岛进程）
             } catch (Throwable t) {
                 error("system glass install failed", t);
             }
@@ -89,6 +90,14 @@ public class ModuleEntry extends XposedModule {
         Log.e(TAG, "onPackageReady pkg=" + param.getPackageName() + " first=" + param.isFirstPackage());
         if (PLUGIN_PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             onPluginLoader(param.getClassLoader()); // 插件独立进程：直接用应用 ClassLoader 安装原子岛 Hook
+        }
+        if (SYSUI.equals(param.getPackageName()) && SYSUI.equals(processName) && param.isFirstPackage()
+                && systemGlass != null) {
+            try {
+                systemGlass.installSysui(param.getClassLoader()); // 下拉面板背景模糊
+            } catch (Throwable t) {
+                error("system glass bg blur install failed", t);
+            }
         }
         if (SettingsHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {
