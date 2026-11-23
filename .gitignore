@@ -1,0 +1,19 @@
+# 构建产物
+build/
+*.apk
+*.idsig
+
+# 签名密钥（build.sh 缺失时会自动生成；换密钥后需卸载重装模块）
+keystore.jks
+*.jks
+*.keystore
+
+# 截图与本地调试产物
+shots/
+fw/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
