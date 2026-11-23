@@ -35,7 +35,7 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
  *   persist.land.island_glass        strong|medium，默认 strong。浅色 409/410，深色 411/412
  *   persist.land.island_glass_trans  1=应用过渡动画期间也保持玻璃（默认），0=原版行为
  *   persist.land.island_glass_sync   1=逐帧同步材质区域（默认），0=关闭
- *   persist.land.island_glass_ct     材质 contentType，默认 2
+ *   persist.land.island_glass_ct     材质 contentType 0~2，默认 2（3 为缓存背景，展开 / 收起会露出拉伸的旧画面，已移除，旧配置 3 按 2 处理）
  *   persist.land.island_glass_debug  1=输出 [diag] 诊断日志，默认 0
  */
 public class ModuleEntry extends XposedModule {
@@ -1105,7 +1105,8 @@ public class ModuleEntry extends XposedModule {
     // 4=窗口模糊 + 应用内 no-delay 背景模糊兜底（vivo 用来消除首帧延迟）。默认 4，可用 prop 切回 0。
     private static int contentType() {
         try {
-            return Integer.parseInt(sysProp("persist.land.island_glass_ct", "2").trim());
+            int ct = Integer.parseInt(sysProp("persist.land.island_glass_ct", "2").trim());
+            return ct >= 0 && ct <= 2 ? ct : 2;
         } catch (Throwable t) {
             return 2;
         }

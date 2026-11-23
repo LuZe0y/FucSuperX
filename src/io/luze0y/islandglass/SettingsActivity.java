@@ -167,7 +167,7 @@ public class SettingsActivity extends Activity {
         heading("高级参数", true);
         c = card();
         c.segmented("材质 contentType", null, "persist.land.island_glass_ct", "2",
-                new String[]{"0", "1", "2", "3"}, new String[]{"0", "1", "2", "3"});
+                new String[]{"0", "1", "2"}, new String[]{"0", "1", "2"});
         c.segmented("材质刷新率", "动画有撕裂感时可尝试固定为屏幕刷新率", "persist.land.island_glass_fps", "0",
                 new String[]{"0", "60", "90", "120", "144"}, new String[]{"自动", "60", "90", "120", "144"});
         c.slider("模糊半径", "0 为不模糊", "persist.land.island_glass_blur", "0", 0f, 0.3f, 0.005f, false, 3);
@@ -521,7 +521,8 @@ public class SettingsActivity extends Activity {
         /** 分段滑动选择（参考 pd2425re「应用主题」）：点按或拖动色块切换，选中即写入。 */
         void segmented(String title, String summary, String key, String def, String[] vals, String[] labels) {
             LinearLayout box = block(title, summary, null);
-            int i = Math.max(0, indexOf(vals, Prop.get(key, def).trim()));
+            int i = indexOf(vals, Prop.get(key, def).trim());
+            if (i < 0) i = Math.max(0, indexOf(vals, def)); // 已移除的旧值（如 contentType 3）显示为默认项
             Segmented s = new Segmented(getContext(), labels, i);
             s.onPick = which -> {
                 if (!Prop.set(key, vals[which])) {
