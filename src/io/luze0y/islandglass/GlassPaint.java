@@ -25,7 +25,7 @@ final class GlassPaint extends Paint {
 
     private boolean active() {
         if (animator == null || blurVisible == null) return false; // 父类构造期间
-        if (dot) return false;
+        if (dot || !ModuleEntry.islandOn) return false; // 圆点 / 总开关关闭：保持原版黑底
         try {
             return blurVisible.getBoolean(animator);
         } catch (Throwable t) {

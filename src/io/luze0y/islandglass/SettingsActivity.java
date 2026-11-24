@@ -184,8 +184,12 @@ public class SettingsActivity extends Activity {
     }
 
     private void buildIsland() {
-        heading("玻璃材质", false);
+        heading("总开关", false);
         Card c = card();
+        c.toggle("调节原子岛", "关闭后原子岛完全恢复系统原版，切换时原子岛会自动重启", "persist.land.island_glass_on", "1");
+
+        heading("玻璃材质", true);
+        c = card();
         c.segmented("材质强度", null, "persist.land.island_glass", "strong",
                 new String[]{"strong", "medium", "folder"}, new String[]{"强", "中", "T0"});
         c.toggle("过渡动画保持玻璃", "应用打开/收回原子岛时也使用材质", "persist.land.island_glass_trans", "1");

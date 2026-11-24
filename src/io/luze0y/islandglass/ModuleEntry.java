@@ -32,6 +32,7 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
  *    逐帧同步材质区域（应用收回原子岛的插值动画不走弹簧回调）、补救卡住的材质。
  *
  * 开关（setprop 后重启 island 进程生效）：
+ *   persist.land.island_glass_on     原子岛总开关：1=启用（默认），0=全部 Hook 直通、原子岛恢复系统原版（切换时原子岛进程自动重启）
  *   persist.land.island_glass        strong|medium，默认 strong。浅色 409/410，深色 411/412
  *   persist.land.island_glass_trans  1=应用过渡动画期间也保持玻璃（默认），0=原版行为
  *   persist.land.island_glass_sync   1=逐帧同步材质区域（默认），0=关闭
@@ -48,6 +49,9 @@ public class ModuleEntry extends XposedModule {
     private static final String PROP_GLASS = "persist.land.island_glass";
     private static final String PROP_TRANS = "persist.land.island_glass_trans";
     private static final String PROP_SYNC = "persist.land.island_glass_sync";
+    private static final String PROP_ON = "persist.land.island_glass_on";
+    /** 原子岛总开关。关闭时所有原子岛 Hook 直接走原版（GlassPaint 同样读取）。 */
+    static volatile boolean islandOn = readOn();
     private static boolean DEBUG = "1".equals(sysProp("persist.land.island_glass_debug", "0").trim()); // onModuleLoaded 后按远程偏好刷新
 
     private String processName = "";
@@ -75,6 +79,7 @@ public class ModuleEntry extends XposedModule {
         Log.e(TAG, "onModuleLoaded process=" + processName + " api=" + safeApi());
         Conf.init(this, processName); // 远程偏好：模块界面无 root 修改配置
         DEBUG = "1".equals(sysProp("persist.land.island_glass_debug", "0").trim());
+        islandOn = readOn(); // 远程偏好就绪后重新读取
         Conf.subscribe(this::onConfChanged); // 配置实时生效
         if (SystemGlass.wants(processName)) {
             try {
@@ -150,7 +155,7 @@ public class ModuleEntry extends XposedModule {
                 Object[] a = chain.getArgs().toArray();
                 Object g = a[0];
                 int style = (Integer) a[1];
-                if (g == null || style < 409 || style > 412) return r;
+                if (!islandOn || g == null || style < 409 || style > 412) return r;
                 try {
                     float blur = Math.max(0f, Float.parseFloat(sysProp("persist.land.island_glass_blur", "0").trim()));
                     float ri = Float.parseFloat(sysProp("persist.land.island_glass_refr", "-1").trim());
@@ -184,7 +189,7 @@ public class ModuleEntry extends XposedModule {
         info("View.setMaterialCustomized return=" + ret + ", setMaterial return=" + setMaterial.getReturnType());
         hook(customized).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
             Object self = chain.getThisObject();
-            if (IN_RECIPE.get() || !(self instanceof View) || !isContainer(self.getClass())) return chain.proceed();
+            if (!islandOn || IN_RECIPE.get() || !(self instanceof View) || !isContainer(self.getClass())) return chain.proceed();
             View v = (View) self;
             ensureConfigHook(v.getClass());
             int style = styleFor(v.getResources().getConfiguration());
@@ -199,7 +204,7 @@ public class ModuleEntry extends XposedModule {
             Method region = View.class.getMethod("setMaterialRegion", RectF.class, float.class);
             hook(region).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
                 Object self = chain.getThisObject();
-                if (!(self instanceof View) || !isContainer(self.getClass())) return chain.proceed();
+                if (!islandOn || !(self instanceof View) || !isContainer(self.getClass())) return chain.proceed();
                 Object a0 = chain.getArg(0);
                 if (a0 instanceof RectF && isDot((RectF) a0)) {
                     if (DEBUG) diag("region dot -> empty " + ((RectF) a0).toShortString());
@@ -284,7 +289,7 @@ public class ModuleEntry extends XposedModule {
             hook(uba).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
                 Object anim = chain.getThisObject();
                 Object want = chain.getArg(0);
-                boolean force = Boolean.FALSE.equals(want) && shouldForce(anim);
+                boolean force = islandOn && Boolean.FALSE.equals(want) && shouldForce(anim);
                 if (DEBUG) diag("updateBlurAppearance(" + want + ") force=" + force + " why=" + forceWhy);
                 return force ? chain.proceed(new Object[]{Boolean.TRUE}) : chain.proceed();
             });
@@ -293,6 +298,7 @@ public class ModuleEntry extends XposedModule {
 
             Method db = cac.getDeclaredMethod("drawBounds", android.graphics.Canvas.class);
             hook(db).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
+                if (!islandOn) return chain.proceed();
                 Object anim = chain.getThisObject();
                 updateDot(anim); // 先于原版绘制判定，让本帧 GlassPaint 就画对颜色
                 updateStroke(anim);
@@ -679,6 +685,18 @@ public class ModuleEntry extends XposedModule {
             DEBUG = "1".equals(sysProp("persist.land.island_glass_debug", "0").trim());
             return;
         }
+        if ("island_glass_on".equals(key)) {
+            boolean v = readOn();
+            if (v == islandOn) return;
+            islandOn = v;
+            info("island master switch -> " + v);
+            if (processName != null && processName.endsWith(":island")) {
+                // 已改动的视图状态（材质、描边、光效、反色、去黑效果）逐项还原代价大且易漏，
+                // 直接退出原子岛进程，由系统重新拉起，按新开关得到干净的原版 / 模块状态
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+            return;
+        }
         if (!key.startsWith("island_glass")) return;
         View[] views;
         synchronized (applied) {
@@ -876,6 +894,10 @@ public class ModuleEntry extends XposedModule {
         return false;
     }
 
+    private static boolean readOn() {
+        return !"0".equals(sysProp(PROP_ON, "1").trim());
+    }
+
     private static String sysProp(String key, String def) {
         return Conf.get(key, def); // 远程偏好优先，回退 persist.land.*
     }
@@ -1053,7 +1075,7 @@ public class ModuleEntry extends XposedModule {
         try {
             Method m = View.class.getMethod("setRenderEffect", android.graphics.RenderEffect.class);
             hook(m).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
-                if (selfFx) return chain.proceed();
+                if (selfFx || !islandOn) return chain.proceed();
                 View v = (View) chain.getThisObject();
                 android.graphics.RenderEffect e = (android.graphics.RenderEffect) chain.getArg(0);
                 if (e == null) theirFx.remove(v); else theirFx.put(v, e);
