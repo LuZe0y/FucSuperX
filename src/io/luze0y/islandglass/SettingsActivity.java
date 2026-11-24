@@ -120,6 +120,13 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onDestroy() {
         Prop.listen(null);
+        if (installRx != null) {
+            try {
+                unregisterReceiver(installRx);
+            } catch (Throwable ignored) {
+            }
+            installRx = null;
+        }
         super.onDestroy();
     }
 
@@ -170,6 +177,7 @@ public class SettingsActivity extends Activity {
         if (!Prop.remote()) { // root 回退模式下修改不会推送到作用域进程，仍需手动重启
             c.action("重启设置", "修改设置入口后执行", "cmd_restart_settings", "am force-stop com.android.settings");
         }
+        buildAbout();
         footer(Prop.remote()
                 ? "修改即时生效，无需 root。"
                 : "未连接 LSPosed 服务（模块未启用或框架过旧），已回退 root 模式：配置写入 persist.land.*。");
@@ -1120,6 +1128,347 @@ public class SettingsActivity extends Activity {
 
     private int dp(float v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    // ---------------- 关于 / 检查更新 ----------------
+    static final String REPO = "LuZe0y/FucSuperX";
+    static final String COOLAPK_UID = "912067";
+    /** 国内加速镜像，按顺序竞速，最后直连 GitHub。 */
+    private static final String[] MIRRORS = {"https://gh-proxy.org/", "https://v4.gh-proxy.org/", "https://cdn.gh-proxy.org/", ""};
+    private static final String ACTION_INSTALL = "io.luze0y.islandglass.INSTALL_STATUS";
+    private volatile boolean checking;
+    private android.content.BroadcastReceiver installRx;
+
+    private void buildAbout() {
+        heading("关于", true);
+        Card c = card();
+        TextView author = valueText();
+        author.setText("陈破孩");
+        c.row("作者", null, withChevron(author), v -> openCoolapk());
+        c.link("酷安主页", "coolapk.com/u/" + COOLAPK_UID, this::openCoolapk);
+        c.link("GitHub 仓库", "github.com/" + REPO, () -> openBrowser("https://github.com/" + REPO));
+        TextView ver = valueText();
+        ver.setText(curVersion());
+        c.row("检查更新", "通过国内加速镜像下载 GitHub Release", withChevron(ver), v -> checkUpdate(ver));
+    }
+
+    private int dialogTheme() {
+        return dark ? android.R.style.Theme_DeviceDefault_Dialog_Alert : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert;
+    }
+
+    /** 优先用酷安 App 打开主页，没装酷安时用浏览器。 */
+    private void openCoolapk() {
+        Intent i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("coolmarket://u/" + COOLAPK_UID))
+                .setPackage("com.coolapk.market");
+        try {
+            startActivity(i);
+        } catch (Throwable t) {
+            openBrowser("https://www.coolapk.com/u/" + COOLAPK_UID);
+        }
+    }
+
+    /** 用浏览器打开：优先默认浏览器，其次任一已安装浏览器；直接指定包名，不弹「打开方式」、不被其他 App 截走。 */
+    private void openBrowser(String url) {
+        Intent view = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE);
+        String pkg = browserPkg();
+        if (pkg != null) view.setPackage(pkg);
+        try {
+            startActivity(view);
+        } catch (Throwable t) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+            } catch (Throwable t2) {
+                toast("没有可用的浏览器");
+            }
+        }
+    }
+
+    private String browserPkg() {
+        android.content.pm.PackageManager pm = getPackageManager();
+        Intent probe = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://example.com"))
+                .addCategory(Intent.CATEGORY_BROWSABLE);
+        java.util.List<android.content.pm.ResolveInfo> all = pm.queryIntentActivities(probe, 0);
+        java.util.Set<String> browsers = new java.util.HashSet<>();
+        for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(
+                Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER), 0)) {
+            browsers.add(r.activityInfo.packageName);
+        }
+        android.content.pm.ResolveInfo def = pm.resolveActivity(probe, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+        if (def != null && def.activityInfo != null && browsers.contains(def.activityInfo.packageName)) {
+            return def.activityInfo.packageName;
+        }
+        def = pm.resolveActivity(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER),
+                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+        if (def != null && def.activityInfo != null && browsers.contains(def.activityInfo.packageName)) {
+            return def.activityInfo.packageName;
+        }
+        for (android.content.pm.ResolveInfo r : all) {
+            if (browsers.contains(r.activityInfo.packageName)) return r.activityInfo.packageName;
+        }
+        return null;
+    }
+
+    private String curVersion() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Throwable t) {
+            return "?";
+        }
+    }
+
+    /** 比较 "v3.2" / "3.10" 这类版本号。 */
+    static int cmpVer(String a, String b) {
+        String[] x = a.replaceAll("[^0-9.]", "").split("\\."), y = b.replaceAll("[^0-9.]", "").split("\\.");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int p = i < x.length && !x[i].isEmpty() ? Integer.parseInt(x[i]) : 0;
+            int q = i < y.length && !y[i].isEmpty() ? Integer.parseInt(y[i]) : 0;
+            if (p != q) return Integer.compare(p, q);
+        }
+        return 0;
+    }
+
+    private static String httpGet(String url, int timeout) throws java.io.IOException {
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+        c.setConnectTimeout(timeout);
+        c.setReadTimeout(timeout);
+        c.setRequestProperty("Accept", "application/vnd.github+json");
+        c.setRequestProperty("User-Agent", "FucSuperX");
+        try {
+            int code = c.getResponseCode();
+            if (code != 200) throw new java.io.IOException("HTTP " + code);
+            try (java.io.InputStream in = c.getInputStream()) {
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                return bo.toString("UTF-8");
+            }
+        } finally {
+            c.disconnect();
+        }
+    }
+
+    /** 所有节点同时请求最新 Release，用最先返回的；返回 {release, 下载节点顺序（最快的在前）}。 */
+    private static Object[] fetchLatest() throws Exception {
+        String api = "https://api.github.com/repos/" + REPO + "/releases/latest";
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(MIRRORS.length);
+        java.util.concurrent.ExecutorCompletionService<Object[]> cs = new java.util.concurrent.ExecutorCompletionService<>(ex);
+        for (String b : MIRRORS) {
+            cs.submit(() -> {
+                org.json.JSONObject o = new org.json.JSONObject(httpGet(b + api, 8000));
+                if (!o.has("tag_name")) throw new java.io.IOException("返回内容无效");
+                return new Object[]{b, o};
+            });
+        }
+        Throwable last = null;
+        try {
+            for (int i = 0; i < MIRRORS.length; i++) {
+                java.util.concurrent.Future<Object[]> f = cs.poll(12, java.util.concurrent.TimeUnit.SECONDS);
+                if (f == null) break;
+                try {
+                    Object[] r = f.get();
+                    java.util.List<String> order = new java.util.ArrayList<>();
+                    order.add((String) r[0]);
+                    for (String b : MIRRORS) if (!b.equals(r[0])) order.add(b);
+                    return new Object[]{r[1], order};
+                } catch (java.util.concurrent.ExecutionException e) {
+                    last = e.getCause();
+                }
+            }
+        } finally {
+            ex.shutdownNow();
+        }
+        throw new java.io.IOException(last == null ? "连接超时" : String.valueOf(last.getMessage()));
+    }
+
+    private void checkUpdate(TextView ver) {
+        if (checking) return;
+        checking = true;
+        ver.setText("检查中…");
+        new Thread(() -> {
+            Object[] r = null;
+            String err = null;
+            try {
+                r = fetchLatest();
+            } catch (Throwable t) {
+                err = t.getMessage();
+                Log.w(TAG, "update check: " + t);
+            }
+            final Object[] res = r;
+            final String e = err;
+            runOnUiThread(() -> {
+                checking = false;
+                ver.setText(curVersion());
+                if (isFinishing() || isDestroyed()) return;
+                if (res == null) toast("检查更新失败：" + e);
+                else {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<String> order = (java.util.List<String>) res[1];
+                    onRelease((org.json.JSONObject) res[0], order);
+                }
+            });
+        }, "fsx-update").start();
+    }
+
+    private void onRelease(org.json.JSONObject rel, java.util.List<String> bases) {
+        String tag = rel.optString("tag_name"), cur = curVersion();
+        if (cmpVer(tag, cur) <= 0) {
+            toast("已是最新版本 " + cur);
+            return;
+        }
+        String apk = null;
+        long size = -1;
+        org.json.JSONArray as = rel.optJSONArray("assets");
+        for (int i = 0; as != null && i < as.length(); i++) {
+            org.json.JSONObject a = as.optJSONObject(i);
+            if (a != null && a.optString("name").endsWith(".apk")) {
+                apk = a.optString("browser_download_url");
+                size = a.optLong("size", -1);
+                break;
+            }
+        }
+        String notes = rel.optString("body", "").trim();
+        if (notes.length() > 1200) notes = notes.substring(0, 1200) + "…";
+        String page = rel.optString("html_url", "https://github.com/" + REPO + "/releases/latest");
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("发现新版本 " + tag)
+                .setMessage("当前版本 " + cur + (notes.isEmpty() ? "" : "\n\n" + notes))
+                .setNegativeButton("取消", null)
+                .setNeutralButton("浏览器打开", (d, w) -> openBrowser(page));
+        if (apk != null && !apk.isEmpty()) {
+            final String url = apk;
+            final long sz = size;
+            b.setPositiveButton("下载并安装", (d, w) -> download(url, sz, tag, bases));
+        }
+        b.show();
+    }
+
+    private void download(String url, long size, String tag, java.util.List<String> bases) {
+        final boolean[] cancel = {false};
+        android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("下载 " + tag)
+                .setMessage("连接中…")
+                .setCancelable(false)
+                .setNegativeButton("取消", (d, w) -> cancel[0] = true)
+                .create();
+        dlg.show();
+        java.io.File f = new java.io.File(getCacheDir(), "update.apk");
+        new Thread(() -> {
+            String err = "没有可用节点";
+            for (String b : bases) {
+                if (cancel[0]) break;
+                String host = b.isEmpty() ? "github.com" : android.net.Uri.parse(b).getHost();
+                try {
+                    fetchTo(b + url, f, size, host, dlg, cancel);
+                    runOnUiThread(() -> {
+                        dlg.dismiss();
+                        if (!isFinishing() && !isDestroyed()) install(f);
+                    });
+                    return;
+                } catch (Throwable t) {
+                    err = host + "：" + t.getMessage();
+                    Log.w(TAG, "update download via " + host + ": " + t);
+                }
+            }
+            final String e = err;
+            runOnUiThread(() -> {
+                dlg.dismiss();
+                if (!cancel[0]) toast("下载失败，" + e);
+            });
+        }, "fsx-download").start();
+    }
+
+    private void fetchTo(String url, java.io.File f, long size, String host, android.app.AlertDialog dlg, boolean[] cancel)
+            throws java.io.IOException {
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+        c.setInstanceFollowRedirects(true);
+        c.setConnectTimeout(10000);
+        c.setReadTimeout(15000);
+        c.setRequestProperty("User-Agent", "FucSuperX");
+        try {
+            int code = c.getResponseCode();
+            if (code != 200) throw new java.io.IOException("HTTP " + code);
+            long total = c.getContentLengthLong();
+            if (total <= 0) total = size;
+            long got = 0, lastUi = 0;
+            try (java.io.InputStream in = c.getInputStream(); java.io.OutputStream out = new java.io.FileOutputStream(f)) {
+                byte[] buf = new byte[16384];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    if (cancel[0]) throw new java.io.IOException("已取消");
+                    out.write(buf, 0, n);
+                    got += n;
+                    long now = android.os.SystemClock.uptimeMillis();
+                    if (now - lastUi > 150) {
+                        lastUi = now;
+                        String msg = "节点 " + host + "\n" + (total > 0 ? (got * 100 / total) + "%" : (got / 1024) + " KB");
+                        runOnUiThread(() -> dlg.setMessage(msg));
+                    }
+                }
+            }
+        } finally {
+            c.disconnect();
+        }
+        if (size > 0 && f.length() != size) throw new java.io.IOException("文件不完整");
+        android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(f.getPath(), 0);
+        if (pi == null || !getPackageName().equals(pi.packageName)) throw new java.io.IOException("安装包无效");
+    }
+
+    /** 用系统安装器安装（PackageInstaller 会话，弹出系统确认页）。 */
+    private void install(java.io.File f) {
+        try {
+            android.content.pm.PackageInstaller pi = getPackageManager().getPackageInstaller();
+            android.content.pm.PackageInstaller.SessionParams sp = new android.content.pm.PackageInstaller.SessionParams(
+                    android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            sp.setAppPackageName(getPackageName());
+            sp.setSize(f.length());
+            int id = pi.createSession(sp);
+            try (android.content.pm.PackageInstaller.Session s = pi.openSession(id)) {
+                try (java.io.OutputStream o = s.openWrite("base.apk", 0, f.length());
+                     java.io.InputStream in = new java.io.FileInputStream(f)) {
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+                    s.fsync(o);
+                }
+                registerInstallRx();
+                Intent cb = new Intent(ACTION_INSTALL).setPackage(getPackageName());
+                android.app.PendingIntent pin = android.app.PendingIntent.getBroadcast(this, id, cb,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_MUTABLE);
+                s.commit(pin.getIntentSender());
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "update install: " + t);
+            toast("安装失败：" + t.getMessage());
+        }
+    }
+
+    private void registerInstallRx() {
+        if (installRx != null) return;
+        installRx = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent i) {
+                int st = i.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
+                        android.content.pm.PackageInstaller.STATUS_FAILURE);
+                if (st == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                    Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
+                    if (confirm != null) {
+                        confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(confirm);
+                    }
+                } else if (st == android.content.pm.PackageInstaller.STATUS_SUCCESS) {
+                    toast("更新完成");
+                } else if (st == android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT
+                        || st == android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE) {
+                    toast("安装失败：签名与当前版本不一致，需先卸载");
+                } else if (st != android.content.pm.PackageInstaller.STATUS_FAILURE_ABORTED) {
+                    toast("安装失败：" + i.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE));
+                }
+            }
+        };
+        android.content.IntentFilter flt = new android.content.IntentFilter(ACTION_INSTALL);
+        if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(installRx, flt, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(installRx, flt);
     }
 
     private void toast(String s) {
