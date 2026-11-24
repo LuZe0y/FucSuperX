@@ -138,7 +138,11 @@ final class NcLand {
         int w = clear.getMeasuredWidth() > 0 ? clear.getMeasuredWidth() : clear.getWidth();
         int h = clear.getMeasuredHeight() > 0 ? clear.getMeasuredHeight() : clear.getHeight();
         int l = o[0] + clock.getWidth() / 2 - w / 2;
-        int t = o[1] + clock.getHeight() + Math.round(12 * p.getResources().getDisplayMetrics().density);
+        Integer vb;
+        synchronized (NcHeader.VISUAL_BOTTOM) {
+            vb = NcHeader.VISUAL_BOTTOM.get(clock);
+        }
+        int t = o[1] + (vb == null ? clock.getHeight() : vb) + Math.round(12 * p.getResources().getDisplayMetrics().density);
         clear.layout(l, t, l + w, t + h);
     }
 

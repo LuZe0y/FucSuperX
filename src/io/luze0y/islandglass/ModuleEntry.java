@@ -223,7 +223,7 @@ public class ModuleEntry extends XposedModule {
                 hook(k).setExceptionMode(ExceptionMode.DEFAULT).intercept(chain -> {
                     Object r = chain.proceed();
                     Object dex = chain.getArg(0);
-                    if (dex instanceof String && ((String) dex).contains(PLUGIN_APK)) {
+                    if (dex instanceof String && isPluginDex((String) dex)) {
                         info("plugin loader created: " + dex);
                         onPluginLoader((ClassLoader) chain.getThisObject());
                     }
@@ -235,6 +235,11 @@ public class ModuleEntry extends XposedModule {
             }
         }
         info("BaseDexClassLoader ctor hooks: " + n);
+    }
+
+    /** 内置版在 /system/priv-app/SystemUIPlugin/，应用商店更新后在 /data/app/…/com.vivo.systemuiplugin-…/，两种都要认。 */
+    private static boolean isPluginDex(String dex) {
+        return dex.contains(PLUGIN_APK) || dex.contains(PLUGIN_PKG + "-") || dex.contains("/" + PLUGIN_PKG + "/");
     }
 
     private synchronized void onPluginLoader(ClassLoader cl) {

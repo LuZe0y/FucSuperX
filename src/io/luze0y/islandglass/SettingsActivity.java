@@ -238,6 +238,19 @@ public class SettingsActivity extends Activity {
         c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
         c.slider("下移距离", "整体向下移动，单位 dp（竖屏）", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
 
+        heading("字体", true);
+        c = card();
+        c.choice("时间字体", "跟随锁屏：时间和日期都使用锁屏当前的字体", "persist.land.nc_clock_font", "sys",
+                new String[]{"sys", "lock", "vivoSansClockVF", "vivoSansClock-Bold", "vivoSansClock-Light",
+                        "vivoSansClockHAVF-OS7", "vivoSansClockHASerifVF-OS7", "vivoSansClockHASquareVF",
+                        "vivoSansClockRoundedVF", "vivoSansClockSerifVF", "vivoSansClockSlabVF",
+                        "vivoSansClockStencilVF", "vivoSansClockInlineVF", "vivoSansClockSilkVF",
+                        "vivoSansCondVF", "vivoSansCompVF"},
+                new String[]{"系统默认", "跟随锁屏", "时钟 常规", "时钟 粗体", "时钟 细体",
+                        "HA", "HA 衬线", "HA 方形", "圆体", "衬线", "粗衬线",
+                        "镂空", "内线", "丝线", "窄体", "紧凑"});
+        c.slider("字重", "仅对自选字体生效，点按数值恢复字体默认", "persist.land.nc_clock_wght", "-1", 100f, 900f, 50f, true, 0);
+
         heading("横屏", true);
         c = card();
         c.toggle("横屏分栏", "时间日期在左半屏，通知在右半屏", "persist.land.nc_land_split", "1");
@@ -611,6 +624,27 @@ public class SettingsActivity extends Activity {
             LayoutParams lp = new LayoutParams(-1, -2);
             lp.topMargin = dp(6);
             box.addView(s, lp);
+        }
+
+        /** 单选：右侧显示当前项，点按弹出列表。 */
+        void choice(String title, String summary, String key, String def, String[] vals, String[] labels) {
+            TextView val = valueText();
+            int i = indexOf(vals, Prop.get(key, def).trim());
+            if (i < 0) i = Math.max(0, indexOf(vals, def));
+            final int[] sel = {i};
+            val.setText(labels[i]);
+            row(title, summary, withChevron(val), v -> new android.app.AlertDialog.Builder(getContext(),
+                    dark ? android.R.style.Theme_DeviceDefault_Dialog_Alert
+                            : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setTitle(title)
+                    .setSingleChoiceItems(labels, sel[0], (dlg, which) -> {
+                        sel[0] = which;
+                        val.setText(labels[which]);
+                        if (!Prop.set(key, vals[which])) toast("写入失败：需要 root");
+                        dlg.dismiss();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show());
         }
 
         /** 跳转行：标题 + 摘要 + 右箭头。 */
