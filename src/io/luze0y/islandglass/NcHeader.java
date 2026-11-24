@@ -26,6 +26,7 @@ import io.github.libxposed.api.XposedModule;
  * 只作用于通知中心（父级为 VivoSimpleHeaderContainer 的 VivoQSHeader），控制中心不动；横屏不动。
  *   nc_bigclock      1 开（默认）/ 0 关
  *   nc_clock_scale   时间字号倍数 1~3，默认 2
+ *   nc_land_split    横屏分栏时，时间日期在左半屏垂直居中（与 NcLand 共用开关）
  *   nc_clock_offset  时间 / 日期整体下移距离 0~200dp，默认 42（约为原顶部距离的一倍）
  */
 final class NcHeader {
@@ -39,6 +40,7 @@ final class NcHeader {
     private volatile boolean on = true;
     private volatile float scale = 2f;
     private volatile float offsetDp = 42f;
+    private volatile boolean landSplit = true;
     private Class<?> headerClass;
     private Field fClock;
     private Method mSetMeasured;
@@ -76,6 +78,16 @@ final class NcHeader {
         });
         Method att = headerClass.getDeclaredMethod("onAttachedToWindow");
         module.hook(att).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Object r = chain.proceed();
+            View h = (View) chain.getThisObject();
+            track(h);
+            applyStyle(h);
+            h.requestLayout();
+            return r;
+        });
+        // 旋转屏幕时系统不一定重设时间字号：这里按当前方向重算（横屏恢复系统字号），否则放大的字会被裁掉
+        Method occ = headerClass.getDeclaredMethod("onConfigurationChanged", Configuration.class);
+        module.hook(occ).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
             Object r = chain.proceed();
             View h = (View) chain.getThisObject();
             track(h);
@@ -130,7 +142,8 @@ final class NcHeader {
     }
 
     private boolean active(View h) {
-        return on && h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT && isNc(h);
+        boolean portrait = h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+        return on && (portrait || landSplit) && isNc(h);
     }
 
     private TextView clock(View h) {
@@ -187,7 +200,8 @@ final class NcHeader {
         int un = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
         c.measure(at, un);
         d.measure(at, un);
-        int need = h.getPaddingTop() + offset(h) + d.getMeasuredHeight() + c.getMeasuredHeight() + h.getPaddingBottom();
+        int content = d.getMeasuredHeight() + c.getMeasuredHeight();
+        int need = h.getPaddingTop() + topOffset(h, content) + content + h.getPaddingBottom();
         if (need <= h.getMeasuredHeight()) return;
         try {
             mSetMeasured.invoke(h, h.getMeasuredWidthAndState(), need);
@@ -200,19 +214,63 @@ final class NcHeader {
     private void relayout(View h) {
         View c = clock(h), d = child(h, "right_date", ID_DATE, true), ic = child(h, "icon_container", ID_ICONS, false);
         if (c == null || d == null) return;
-        int W = h.getWidth(), top = h.getPaddingTop() + offset(h);
         int dw = d.getMeasuredWidth(), dh = d.getMeasuredHeight();
         int cw = c.getMeasuredWidth(), ch = c.getMeasuredHeight();
+        int W = h.getWidth(), top = h.getPaddingTop() + topOffset(h, dh + ch);
         int dx = (W - dw) / 2;
         d.layout(dx, top, dx + dw, top + dh);
         int cx = (W - cw) / 2, cy = top + dh;
         c.layout(cx, cy, cx + cw, cy + ch);
         if (ic != null && ic.getVisibility() != View.GONE) {
-            int iw = ic.getWidth(), ih = ic.getHeight(), il = ic.getLeft(), it = top + Math.max(0, (dh - ih) / 2);
+            int iw = ic.getWidth(), ih = ic.getHeight(), il, it;
+            if (h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
+                il = ic.getLeft(); // 竖屏：与日期同一行，横向位置不变
+                it = top + Math.max(0, (dh - ih) / 2);
+            } else {
+                il = -firstVisibleLeft(ic); // 横屏：左半屏左上角（状态栏下方）
+                it = landIconTop(h);
+            }
             ic.layout(il, it, il + iw, it + ih);
         }
         h.setPivotX(cx + cw / 2f); // 系统展开动画以时间为中心缩放
         h.setPivotY(cy + ch / 2f);
+    }
+
+    private static int firstVisibleLeft(View v) {
+        if (!(v instanceof android.view.ViewGroup)) return 0;
+        android.view.ViewGroup g = (android.view.ViewGroup) v;
+        int min = Integer.MAX_VALUE;
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if (c.getVisibility() == View.VISIBLE) min = Math.min(min, c.getLeft());
+        }
+        return min == Integer.MAX_VALUE ? 0 : min;
+    }
+
+    private static int landIconTop(View h) {
+        int id = h.getResources().getIdentifier("status_bar_height", "dimen", "android");
+        int sb = id == 0 ? 0 : h.getResources().getDimensionPixelSize(id);
+        int y = 0;
+        for (View v = h; v != null; ) {
+            y += v.getTop();
+            ViewParent p = v.getParent();
+            v = p instanceof View ? (View) p : null;
+        }
+        return Math.max(0, sb + Math.round(8 * h.getResources().getDisplayMetrics().density) - y);
+    }
+
+    /** 竖屏：下移距离；横屏分栏：在左半屏垂直居中。按布局位置计算（不含动画位移），测量与布局一致。 */
+    private int topOffset(View h, int content) {
+        if (h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) return offset(h);
+        int y = 0;
+        View v = h;
+        while (v != null) {
+            y += v.getTop();
+            ViewParent p = v.getParent();
+            v = p instanceof View ? (View) p : null;
+        }
+        int screenH = h.getResources().getDisplayMetrics().heightPixels;
+        return Math.max(0, (screenH - content) / 2 - y - h.getPaddingTop());
     }
 
     private int offset(View h) {
@@ -248,5 +306,6 @@ final class NcHeader {
         } catch (Throwable t) {
             offsetDp = 42f;
         }
+        landSplit = !"0".equals(Conf.get("persist.land.nc_land_split", "1").trim());
     }
 }

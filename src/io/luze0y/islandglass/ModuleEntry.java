@@ -98,6 +98,11 @@ public class ModuleEntry extends XposedModule {
             } catch (Throwable t) {
                 error("system glass bg blur install failed", t);
             }
+            try {
+                new NcLand(this).install(param.getClassLoader()); // 横屏通知中心分栏
+            } catch (Throwable t) {
+                error("nc land install failed", t);
+            }
         }
         if (SettingsHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {

@@ -236,7 +236,11 @@ public class SettingsActivity extends Activity {
         Card c = card();
         c.toggle("大号居中", "日期在上、时间放大在下，均水平居中", "persist.land.nc_bigclock", "1");
         c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
-        c.slider("下移距离", "整体向下移动，单位 dp", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
+        c.slider("下移距离", "整体向下移动，单位 dp（竖屏）", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
+
+        heading("横屏", true);
+        c = card();
+        c.toggle("横屏分栏", "时间日期在左半屏，通知在右半屏", "persist.land.nc_land_split", "1");
 
         if (!Prop.remote()) { // root 回退模式：配置不会推送到 SystemUI，仍需重启
             heading("生效", true);
@@ -245,7 +249,7 @@ public class SettingsActivity extends Activity {
                     "kill -9 $(pidof com.android.systemui)");
         }
         footer(Prop.remote()
-                ? "只改通知中心顶部的字号和位置，控制中心与横屏不受影响。点按滑块右侧数值恢复默认。修改即时生效。"
+                ? "只改通知中心的字号和位置，控制中心不受影响。点按滑块右侧数值恢复默认。修改即时生效。"
                 : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。");
     }
 
