@@ -234,6 +234,13 @@ public class ModuleEntry extends XposedModule {
 
     private synchronized void onPluginLoader(ClassLoader cl) {
         if (!hookedLoaders.add(cl)) return;
+        if (SYSUI.equals(processName)) {
+            try {
+                new NcHeader(this).install(cl); // 通知中心时间 / 日期大号居中
+            } catch (Throwable t) {
+                error("nc header install failed", t);
+            }
+        }
         try {
             Class<?> cac = Class.forName(ANIMATOR, false, cl);
             fBlurVisible = findField(cac, "mBlurVisible");

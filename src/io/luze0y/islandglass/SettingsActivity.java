@@ -45,8 +45,8 @@ public class SettingsActivity extends Activity {
     private static final PathInterpolator EASE_UP = new PathInterpolator(0.33f, 0f, 0.67f, 1f);
     private static final PathInterpolator EASE_SWITCH = new PathInterpolator(0.2f, 0f, 0.1f, 1f);
 
-    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass";
-    private boolean dark, island, sysglass;
+    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass", PAGE_NC = "nc";
+    private boolean dark, island, sysglass, nc;
     private int cBg, cCard, cTitle, cSummary, cHeading, cDivider, cAccent, cTrackOff, cRingOff, cPress, cChevron, cCircle, cIcon;
 
     private FrameLayout frame;
@@ -74,6 +74,7 @@ public class SettingsActivity extends Activity {
         super.onCreate(b);
         island = PAGE_ISLAND.equals(getIntent().getStringExtra(EXTRA_PAGE));
         sysglass = PAGE_SYSGLASS.equals(getIntent().getStringExtra(EXTRA_PAGE));
+        nc = PAGE_NC.equals(getIntent().getStringExtra(EXTRA_PAGE));
         palette();
         Window w = getWindow();
         w.setStatusBarColor(Color.TRANSPARENT);
@@ -132,6 +133,7 @@ public class SettingsActivity extends Activity {
 
         if (island) buildIsland();
         else if (sysglass) buildSysGlass();
+        else if (nc) buildNc();
         else buildMain();
     }
 
@@ -143,6 +145,8 @@ public class SettingsActivity extends Activity {
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_ISLAND)));
         c.link("系统液态玻璃", "控制中心、通知、锁屏通知等，不含原子岛", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SYSGLASS)));
+        c.link("通知中心", "顶部时间、日期大号居中", () ->
+                startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_NC)));
 
         heading("设置", true);
         c = card();
@@ -226,6 +230,25 @@ public class SettingsActivity extends Activity {
                 : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。原子岛不受本页影响。");
     }
 
+    /** 通知中心：顶部时间 / 日期的大小与位置，控制中心不受影响。 */
+    private void buildNc() {
+        heading("时间与日期", false);
+        Card c = card();
+        c.toggle("大号居中", "日期在上、时间放大在下，均水平居中", "persist.land.nc_bigclock", "1");
+        c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
+        c.slider("下移距离", "整体向下移动，单位 dp", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
+
+        if (!Prop.remote()) { // root 回退模式：配置不会推送到 SystemUI，仍需重启
+            heading("生效", true);
+            c = card();
+            c.action("重启 SystemUI", "root 模式下修改后需重启才会套用", "cmd_restart_systemui",
+                    "kill -9 $(pidof com.android.systemui)");
+        }
+        footer(Prop.remote()
+                ? "只改通知中心顶部的字号和位置，控制中心与横屏不受影响。点按滑块右侧数值恢复默认。修改即时生效。"
+                : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。");
+    }
+
     private void footer(String s) {
         TextView foot = text(s, 12, cHeading, false);
         foot.setLineSpacing(dp(2), 1f);
@@ -269,7 +292,7 @@ public class SettingsActivity extends Activity {
         bl.leftMargin = dp(20);
         bar.addView(backBtn, bl);
 
-        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : "FucSuperX", 18, cTitle, true);
+        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : nc ? "通知中心" : "FucSuperX", 18, cTitle, true);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
         tl.leftMargin = dp(68);
         tl.topMargin = dp(2); // 与系统 OriginUI 顶栏标题基线对齐
