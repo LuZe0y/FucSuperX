@@ -223,6 +223,8 @@ public class SettingsActivity extends Activity {
         heading("总开关", false);
         Card c = card();
         c.toggle("调节系统液态玻璃", "关闭后完全使用系统原版参数", "persist.land.sysglass", "1");
+        c.toggle("排除其他系统弹窗", "指纹验证弹窗、小窗 / 分屏菜单、原子工作台入口等不在通知栏 / 控制中心 / 锁屏里的材质保持系统原样",
+                "persist.land.sysglass_excl_other", "1");
 
         heading("液态玻璃材质", true);
         c = card();

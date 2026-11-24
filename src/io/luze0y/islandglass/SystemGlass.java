@@ -34,9 +34,14 @@ import io.github.libxposed.api.XposedModule;
  * 4. 实时生效：记录每个材质最近一次 setMaterialForce / setMaterialCustomized 的原始参数，
  *    配置变更后在 View 线程重放一遍，已显示的界面立即套用新倍数，无需重启 SystemUI。
  * 5. 排除音量面板（按键调出的 VOLUME_OVERLAY 窗口）：其材质保持系统原样，不缩放、不记录。
+ * 6. 排除其他系统弹窗（sysglass_excl_other，默认开）：材质所在窗口不是通知栏 / 控制中心 / 锁屏
+ *    （NOTIFICATION_SHADE）或状态栏时保持系统原样，例如指纹验证弹窗（BiometricPrompt）、
+ *    小窗 / 分屏菜单（Split ListPopMenu）、原子工作台 / 小窗常驻入口（RESIDENT_ENTRANCE）。仍记录原始调用，开关切换可实时生效。
+ *    材质设置时 View 还没挂到窗口则先按普通处理，挂上窗口后判定需要排除再用原始参数重放一次。
  *
  * 键（远程偏好 / persist.land.*），倍数 1 = 系统原值：
  *   sysglass             1 开 / 0 关（关闭即完全不干预）
+ *   sysglass_excl_other  1=排除通知栏 / 控制中心 / 锁屏以外的系统弹窗（默认），0=一并调节
  *   sysglass_tint        染色层不透明度（材质强度）     sysglass_blur     模糊半径
  *   sysglass_sat         饱和度                         sysglass_alpha    最终不透明度
  *   sysglass_refr        折射强度                       sysglass_refr_r   折射范围
@@ -59,6 +64,9 @@ final class SystemGlass {
     private static final ThreadLocal<Integer> C_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Boolean> SKIP = ThreadLocal.withInitial(() -> false);
     private static final int TYPE_VOLUME_OVERLAY = 2020; // WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY
+    private static final int TYPE_STATUS_BAR = 2000, TYPE_NOTIFICATION_SHADE = 2040;
+    // 材质所在窗口的分类：普通（通知栏 / 控制中心 / 锁屏 / 状态栏）、音量面板、其他系统弹窗、尚未挂到窗口
+    private static final int CAT_UNKNOWN = -1, CAT_NORMAL = 0, CAT_VOLUME = 1, CAT_OTHER = 2;
 
     /** 每个 VivoViewImpl 各位置最近一次的原始调用（缩放前）。 */
     private static final class Rec {
@@ -93,7 +101,10 @@ final class SystemGlass {
     private Method mForce;
 
     private final Map<Object, Rec> recs = new WeakHashMap<>();
-    private final Map<Object, Boolean> volImpls = new WeakHashMap<>(); // 已确认属于音量面板的材质
+    private final Map<Object, Integer> cats = new WeakHashMap<>(); // 已挂到窗口的材质 -> 分类
+    private final Map<View, Boolean> attachWatch = new WeakHashMap<>(); // 等待挂到窗口后再判定的 View
+    private final java.util.Set<String> loggedExcl = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+    private volatile boolean exclOther = true;
     private final Map<Object, GeoState> geoStates = new WeakHashMap<>();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable replayAll = this::replayAll;
@@ -240,12 +251,14 @@ final class SystemGlass {
                     int pos = 0;
                     if (n == 14 && chain.getArg(13) instanceof Integer) pos = (Integer) chain.getArg(13);
                     Object self = chain.getThisObject();
-                    if (excluded(self)) return skipping(chain);
+                    int cat = category(self);
+                    if (cat == CAT_VOLUME) return skipping(chain);
                     int style = styleOf(self, pos);
                     if (style < 0) style = lastStyle(self, pos);
                     boolean glass = style >= GLASS_MIN && style <= GLASS_MAX;
                     if (!glass && style != 0) return chain.proceed();
                     recordCustom(self, pos, mx, chain.getArgs().toArray());
+                    if (skip(cat)) return skipping(chain);
                     if (!on) return chain.proceed();
                     float kt = glass ? tint : zTint, kb = glass ? blur : zBlur;
                     if (kt == 1f && kb == 1f && sat == 1f && alpha == 1f) return chain.proceed();
@@ -272,12 +285,13 @@ final class SystemGlass {
         module.hook(force).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
             Object[] args = chain.getArgs().toArray();
             Object me = chain.getThisObject();
-            if (excluded(me)) {
+            int cat = category(me);
+            if (cat == CAT_VOLUME) {
                 Object r0 = skipping(chain);
                 if (args[2] instanceof Integer) clearRec(me, (Integer) args[2]);
                 return r0;
             }
-            Object r = chain.proceed();
+            Object r = skip(cat) ? skipping(chain) : chain.proceed();
             if (args[0] instanceof Integer && args[2] instanceof Integer) {
                 int style = (Integer) args[0], pos = (Integer) args[2];
                 Object self = chain.getThisObject();
@@ -290,29 +304,89 @@ final class SystemGlass {
         });
     }
 
-    /** 材质所在 View 是否位于音量面板窗口。确认为是后缓存；未挂到窗口时无法判断，按否处理。 */
-    private boolean excluded(Object impl) {
-        synchronized (volImpls) {
-            if (volImpls.containsKey(impl)) return true;
+    private boolean skip(int cat) {
+        return cat == CAT_VOLUME || (cat == CAT_OTHER && exclOther);
+    }
+
+    /**
+     * 材质所在窗口的分类，挂到窗口后缓存。还没挂到窗口时无法判断：返回 CAT_UNKNOWN（按普通处理），
+     * 并在挂上窗口时重新判定，需要排除就用记录的原始参数重放一次，撤销已经套上的倍数。
+     */
+    private int category(Object impl) {
+        synchronized (cats) {
+            Integer c = cats.get(impl);
+            if (c != null) return c;
         }
         try {
             Object vv = fView == null ? null : fView.get(impl);
-            if (!(vv instanceof View)) return false;
+            if (!(vv instanceof View)) return CAT_NORMAL;
             View v = (View) vv;
+            if (!v.isAttachedToWindow()) {
+                watchAttach(impl, v);
+                return CAT_UNKNOWN;
+            }
             ViewGroup.LayoutParams lp = v.getRootView().getLayoutParams();
-            if (!(lp instanceof WindowManager.LayoutParams)) return false;
-            if (((WindowManager.LayoutParams) lp).type != TYPE_VOLUME_OVERLAY) return false;
-            synchronized (volImpls) {
-                volImpls.put(impl, true);
+            if (!(lp instanceof WindowManager.LayoutParams)) return CAT_UNKNOWN;
+            WindowManager.LayoutParams w = (WindowManager.LayoutParams) lp;
+            int cat = w.type == TYPE_VOLUME_OVERLAY ? CAT_VOLUME
+                    : w.type == TYPE_NOTIFICATION_SHADE || w.type == TYPE_STATUS_BAR ? CAT_NORMAL : CAT_OTHER;
+            synchronized (cats) {
+                cats.put(impl, cat);
             }
-            synchronized (recs) {
-                recs.remove(impl);
+            if (cat == CAT_VOLUME) {
+                synchronized (recs) {
+                    recs.remove(impl);
+                }
             }
-            Log.i(TAG, "system glass skip volume panel: " + v.getClass().getName());
-            return true;
+            if (cat != CAT_NORMAL) {
+                String title = String.valueOf(w.getTitle()).replaceAll(" of Task=\\d+", "");
+                if (loggedExcl.add(cat + "|" + w.type + "|" + title))
+                    Log.i(TAG, "system glass " + (cat == CAT_VOLUME ? "skip volume panel" : "other window")
+                            + ": type=" + w.type + " title=" + title + " view=" + v.getClass().getName());
+            }
+            return cat;
         } catch (Throwable t) {
-            return false;
+            return CAT_NORMAL;
         }
+    }
+
+    private void watchAttach(Object impl, View v) {
+        synchronized (attachWatch) {
+            if (attachWatch.put(v, Boolean.TRUE) != null) return;
+        }
+        v.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View x) {
+                x.removeOnAttachStateChangeListener(this);
+                synchronized (attachWatch) {
+                    attachWatch.remove(x);
+                }
+                Rec snap;
+                synchronized (recs) {
+                    snap = copy(recs.get(impl)); // 先取快照：判定为音量面板时会清掉记录
+                }
+                if (snap != null && skip(category(impl))) x.post(() -> replay(impl, x, snap));
+            }
+
+            @Override
+            public void onViewDetachedFromWindow(View x) {
+            }
+        });
+    }
+
+    /** 复制一份记录；没有任何可重放的调用时返回 null。调用方持有 recs 锁。 */
+    private static Rec copy(Rec src) {
+        if (src == null) return null;
+        Rec cp = new Rec();
+        boolean any = false;
+        for (int p = 0; p < MAX_POS; p++) {
+            cp.style[p] = src.style[p];
+            cp.force[p] = src.force[p];
+            cp.cm[p] = src.cm[p];
+            cp.cargs[p] = src.cargs[p];
+            any |= src.force[p] != null || src.cargs[p] != null;
+        }
+        return any ? cp : null;
     }
 
     private static Object skipping(io.github.libxposed.api.XposedInterface.Chain chain) throws Throwable {
@@ -433,16 +507,8 @@ final class SystemGlass {
         List<Rec> snaps = new ArrayList<>();
         synchronized (recs) {
             for (Map.Entry<Object, Rec> e : recs.entrySet()) {
-                Rec src = e.getValue(), cp = new Rec();
-                boolean any = false;
-                for (int p = 0; p < MAX_POS; p++) {
-                    cp.style[p] = src.style[p];
-                    cp.force[p] = src.force[p];
-                    cp.cm[p] = src.cm[p];
-                    cp.cargs[p] = src.cargs[p];
-                    any |= src.force[p] != null || src.cargs[p] != null;
-                }
-                if (any) {
+                Rec cp = copy(e.getValue());
+                if (cp != null) {
                     impls.add(e.getKey());
                     snaps.add(cp);
                 }
@@ -481,6 +547,7 @@ final class SystemGlass {
 
     private void load() {
         on = !"0".equals(Conf.get("persist.land.sysglass", "1").trim());
+        exclOther = !"0".equals(Conf.get("persist.land.sysglass_excl_other", "1").trim());
         tint = num("sysglass_tint", 3f);
         blur = num("sysglass_blur", 3f);
         sat = num("sysglass_sat", 3f);
