@@ -88,15 +88,31 @@ public class SettingsActivity extends Activity {
         }
         // 等 LSPosed 服务绑定后再构建（读到远程偏好里的值）；800ms 内未绑定则回退 root 模式
         android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
-        Prop.listen(() -> h.post(this::buildOnce));
+        Prop.listen(() -> h.post(this::onPrefsBound));
         h.postDelayed(this::buildOnce, 800);
     }
 
-    private boolean built;
+    private boolean built, builtRemote;
+
+    /** 800ms 内没等到 LSPosed 服务时页面先用系统属性构建，值可能是旧的；服务绑定后按真实设置重建一次。 */
+    private void onPrefsBound() {
+        if (isFinishing() || isDestroyed()) return;
+        if (!built) {
+            buildOnce();
+            return;
+        }
+        if (builtRemote || !Prop.remote()) return;
+        builtRemote = true;
+        int y = scroll == null ? 0 : scroll.getScrollY();
+        Log.i(TAG, "module UI rebuilt with remote prefs");
+        build();
+        if (scroll != null) scroll.post(() -> scroll.scrollTo(0, y));
+    }
 
     private void buildOnce() {
         if (built || isFinishing() || isDestroyed()) return;
         built = true;
+        builtRemote = Prop.remote();
         Log.i(TAG, "module UI mode=" + (Prop.remote() ? "remote-prefs" : "root-fallback"));
         build();
     }
@@ -240,7 +256,7 @@ public class SettingsActivity extends Activity {
 
         heading("字体", true);
         c = card();
-        c.choice("时间字体", "跟随锁屏：时间和日期都使用锁屏当前的字体", "persist.land.nc_clock_font", "sys",
+        c.fontCards("时间字体", "跟随锁屏：时间和日期都使用锁屏当前的字体", "persist.land.nc_clock_font", "sys",
                 new String[]{"sys", "lock", "vivoSansClockVF", "vivoSansClock-Bold", "vivoSansClock-Light",
                         "vivoSansClockHAVF-OS7", "vivoSansClockHASerifVF-OS7", "vivoSansClockHASquareVF",
                         "vivoSansClockRoundedVF", "vivoSansClockSerifVF", "vivoSansClockSlabVF",
@@ -647,6 +663,55 @@ public class SettingsActivity extends Activity {
                     .show());
         }
 
+        /** 字体卡片：横向滑动，每张用对应字体显示「09:41」，点按立即生效。 */
+        void fontCards(String title, String summary, String key, String def, String[] vals, String[] labels) {
+            LinearLayout box = block(title, summary, null);
+            android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(getContext());
+            hs.setHorizontalScrollBarEnabled(false);
+            hs.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            LinearLayout strip = new LinearLayout(getContext());
+            strip.setOrientation(HORIZONTAL);
+            hs.addView(strip);
+            int sel = indexOf(vals, Prop.get(key, def).trim());
+            if (sel < 0) sel = Math.max(0, indexOf(vals, def));
+            final int[] cur = {sel};
+            final View[] cards = new View[vals.length];
+            for (int i = 0; i < vals.length; i++) {
+                LinearLayout cd = new LinearLayout(getContext());
+                cd.setOrientation(VERTICAL);
+                cd.setGravity(Gravity.CENTER);
+                cd.setPadding(dp(10), dp(8), dp(10), dp(8));
+                cd.setMinimumWidth(dp(96));
+                // 按数字实际轮廓居中绘制：HA 系列字体自带行高远大于数字，用 TextView 会把数字顶出卡片、名字被挤掉
+                GlyphPreview pv = new GlyphPreview(getContext(), "09:41", previewFace(vals[i]), cTitle);
+                cd.addView(pv, new LayoutParams(-2, dp(32)));
+                TextView lb = text(labels[i], 12, cSummary, false);
+                lb.setSingleLine(true);
+                LayoutParams ll = new LayoutParams(-2, -2);
+                ll.topMargin = dp(6);
+                cd.addView(lb, ll);
+                final int idx = i;
+                cd.setOnClickListener(v -> {
+                    if (cur[0] == idx) return;
+                    if (!Prop.set(key, vals[idx])) {
+                        toast("写入失败：需要 root");
+                        return;
+                    }
+                    cur[0] = idx;
+                    for (int j = 0; j < cards.length; j++) paintFontCard(cards[j], j == idx);
+                });
+                cards[i] = cd;
+                paintFontCard(cd, i == sel);
+                LayoutParams lp = new LayoutParams(-2, dp(84));
+                if (i > 0) lp.leftMargin = dp(10);
+                strip.addView(cd, lp);
+            }
+            LayoutParams lp = new LayoutParams(-1, -2);
+            lp.topMargin = dp(12);
+            box.addView(hs, lp);
+            hs.post(() -> hs.scrollTo(Math.max(0, cards[cur[0]].getLeft() - dp(40)), 0));
+        }
+
         /** 跳转行：标题 + 摘要 + 右箭头。 */
         void link(String title, String summary, Runnable go) {
             row(title, summary, withChevron(null), v -> go.run());
@@ -656,6 +721,60 @@ public class SettingsActivity extends Activity {
             row(title, summary, withChevron(null), v -> toast(Prop.restart(cmdKey, legacyCmd)
                     ? "已执行" : "执行失败：LSPosed 服务不可用且没有 root"));
         }
+    }
+
+    /** 只按字形轮廓排版的预览文字，任何字体都在固定高度内居中。 */
+    private final class GlyphPreview extends View {
+        private final String s;
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Rect b = new android.graphics.Rect();
+
+        GlyphPreview(Context c, String s, Typeface tf, int color) {
+            super(c);
+            this.s = s;
+            p.setColor(color);
+            p.setTextSize(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 26,
+                    getResources().getDisplayMetrics()));
+            if (tf != null) p.setTypeface(tf);
+            p.getTextBounds(s, 0, s.length(), b);
+        }
+
+        @Override
+        protected void onMeasure(int w, int h) {
+            int want = (int) Math.ceil(Math.max(p.measureText(s), b.width())) + dp(2);
+            setMeasuredDimension(resolveSize(want, w), resolveSize(b.height() + dp(2), h));
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            float x = (getWidth() - p.measureText(s)) / 2f;
+            float y = getHeight() / 2f - (b.top + b.bottom) / 2f;
+            c.drawText(s, x, y, p);
+        }
+    }
+
+    private void paintFontCard(View v, boolean on) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(on ? withAlpha(cAccent, 0x1F) : cCircle);
+        g.setCornerRadius(dp(12));
+        g.setStroke(on ? dp(2) : Math.max(1, dp(0.5f)), on ? cAccent : cDivider);
+        v.setBackground(g);
+    }
+
+    private static final java.util.Map<String, Typeface> PREVIEW = new java.util.HashMap<>();
+
+    /** 预览用字体，直接读 /system/fonts；系统默认 / 跟随锁屏返回 null（用默认字体）。 */
+    private static Typeface previewFace(String name) {
+        if (name == null || !name.matches("[A-Za-z0-9_.-]+") || "sys".equals(name) || "lock".equals(name)) return null;
+        if (PREVIEW.containsKey(name)) return PREVIEW.get(name);
+        Typeface tf = null;
+        java.io.File f = new java.io.File("/system/fonts/" + (name.endsWith(".ttf") ? name : name + ".ttf"));
+        try {
+            if (f.isFile()) tf = new Typeface.Builder(f).build();
+        } catch (Throwable ignored) {
+        }
+        PREVIEW.put(name, tf);
+        return tf;
     }
 
     private TextView valueText() {
