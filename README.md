@@ -90,9 +90,14 @@ export ANDROID_HOME=~/android-sdk
 发布新版本：修改 `AndroidManifest.xml` 里的 `versionCode` / `versionName` 并提交，然后：
 
 ```bash
-git tag v3.3
-git push origin v3.3
+git tag -a v3.4 -m "FucSuperX 3.4
+
+- 更新内容一
+- 更新内容二"
+git push origin v3.4
 ```
+
+标签说明（第一行之后的内容）会作为 Release 的更新日志，后面自动附上完整提交对比链接。
 
 ## 目录结构
 

@@ -56,9 +56,17 @@ jobs:
           name: FucSuperX-${{ steps.ver.outputs.name }}
           path: build/FucSuperX-*.apk
 
+      - name: Release notes from tag message
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" | sed '/-----BEGIN PGP/,$d' > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: build/FucSuperX-*.apk
+          body_path: ${{ runner.temp }}/notes.md
           generate_release_notes: true
