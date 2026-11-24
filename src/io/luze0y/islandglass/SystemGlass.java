@@ -100,6 +100,8 @@ final class SystemGlass {
 
     // 下拉面板背景模糊：VivoDynamicBlurBg 实例 -> 最近一次系统传入的原始值
     private volatile float bgBlur = 1;
+    // 背景模糊倍数下限：传给 VivoDynamicBlurBg.setBlurRadius 的值变成 0 会导致 SystemUI 崩溃
+    private static final float BG_BLUR_MIN = 0.05f;
     private final Map<Object, Float> bgLast = new WeakHashMap<>();
     private volatile Method mBgSet;
 
@@ -194,7 +196,7 @@ final class SystemGlass {
             }
             float k = on ? bgBlur : 1f;
             if (k == 1f || raw <= 0f) return chain.proceed();
-            return chain.proceed(new Object[]{Math.min(1f, raw * k)});
+            return chain.proceed(new Object[]{Math.min(1f, Math.max(raw * BG_BLUR_MIN, raw * k))});
         });
         mBgSet = m;
         Log.i(TAG, "system glass bg blur hook installed");
@@ -489,7 +491,7 @@ final class SystemGlass {
         lightW = num("sysglass_light_w", 3f);
         zTint = num("sysglass_zero_tint", 3f);
         zBlur = num("sysglass_zero_blur", 3f);
-        bgBlur = num("sysglass_bg_blur", 5f);
+        bgBlur = Math.max(BG_BLUR_MIN, num("sysglass_bg_blur", 5f)); // 0 会让 SystemUI 崩溃，旧配置里的 0 也一并兜底
     }
 
     private static float num(String key, float max) {

@@ -234,7 +234,7 @@ public class SettingsActivity extends Activity {
 
         heading("背景", true);
         c = card();
-        c.slider("背景模糊", "下拉通知 / 控制中心时背后全屏模糊的倍数", "persist.land.sysglass_bg_blur", "1", 0f, 5f, 0.05f, false, 2);
+        c.slider("背景模糊", "下拉通知 / 控制中心时背后全屏模糊的倍数（最小 0.05，为 0 会导致 SystemUI 崩溃）", "persist.land.sysglass_bg_blur", "1", 0.05f, 5f, 0.05f, false, 2);
 
         heading("高级参数", true);
         c = card();
