@@ -8,11 +8,8 @@ import io.github.libxposed.api.XposedInterface;
 /**
  * 作用域进程（SystemUI / 原子岛插件 / 设置）里的配置读取。
  *
- * 优先读 LSPosed 远程偏好（模块界面无 root 写入，框架同步到各作用域进程）；
- * 键名 = persist.land.* 去掉前缀。未设置时回退 SystemProperties（兼容旧的 persist.land.*），再回退默认值。
- *
- * 另外监听 cmd_restart_island / cmd_restart_settings：模块界面写入时间戳，对应进程自行退出，
- * 由系统重新拉起，替代原先的 su pkill / am force-stop。
+ * 只读 LSPosed 远程偏好（模块界面写入，框架同步到各作用域进程），键名 = persist.land.* 去掉前缀；
+ * 未设置或远程偏好不可用时用默认值。
  */
 final class Conf {
     static final String GROUP = "config";
@@ -35,17 +32,9 @@ final class Conf {
             return;
         }
         prefs = p;
-        if (p == null || process == null) return;
-        final String cmd = process.endsWith(":island") ? "cmd_restart_island"
-                : process.startsWith("com.android.settings") ? "cmd_restart_settings"
-                : "com.android.systemui".equals(process) ? "cmd_restart_systemui" : null;
+        if (p == null) return;
         keep = (sp, k) -> {
             if (k == null) return;
-            if (k.equals(cmd)) {
-                Log.i(TAG, "restart requested by module UI, exiting " + process);
-                android.os.Process.killProcess(android.os.Process.myPid());
-                return;
-            }
             for (java.util.function.Consumer<String> c : SUBS) {
                 try {
                     c.accept(k);
@@ -75,16 +64,9 @@ final class Conf {
 
     static String get(String prop, String def) {
         SharedPreferences p = prefs;
-        if (p != null) {
-            try {
-                String v = p.getString(key(prop), null);
-                if (v != null && !v.isEmpty()) return v;
-            } catch (Throwable ignored) {
-            }
-        }
+        if (p == null) return def;
         try {
-            String v = (String) Class.forName("android.os.SystemProperties")
-                    .getMethod("get", String.class, String.class).invoke(null, prop, def);
+            String v = p.getString(key(prop), null);
             return v == null || v.isEmpty() ? def : v;
         } catch (Throwable t) {
             return def;

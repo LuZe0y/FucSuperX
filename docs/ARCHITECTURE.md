@@ -52,16 +52,13 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    UI["SettingsActivity<br/>toggle / slider / 分页"] -->|"有 LSPosed 服务"| RP["远程偏好 config<br/>键 = persist.land.* 去前缀"]
-    UI -->|"无服务回退"| SU["su setprop persist.land.*"]
+    UI["SettingsActivity<br/>toggle / slider / 分页"] -->|"LSPosed 服务（唯一通道）"| RP["远程偏好 config<br/>键 = persist.land.* 去前缀"]
+    UI -.->|"未连接服务"| IN["激活指引页<br/>启用模块 → 勾选作用域 → 软重启"]
     RP --> G["Conf.get(prop, def)"]
-    SU --> SP["SystemProperties"] --> G
     D["默认值"] --> G
-    G -->|"优先级：远程偏好 > SystemProperties > 默认值"| USE["ModuleEntry / SettingsHook"]
+    G -->|"优先级：远程偏好 > 默认值"| USE["ModuleEntry / SystemGlass / SettingsHook"]
     RP -->|"OnSharedPreferenceChange"| L["Conf 监听器"]
-    L -->|"cmd_restart_island"| K1["island 进程 killProcess 重启"]
-    L -->|"cmd_restart_settings"| K2["settings 进程 killProcess 重启"]
-    L -->|"其他键 → subscribe()"| H["onConfChanged 实时生效<br/>(深色 T0、反相、入口开关等)"]
+    L -->|"subscribe()"| H["onConfChanged 实时生效<br/>(island_glass_on 切换时 island 进程自行重启)"]
 ```
 
 ## 3. 原子岛玻璃（ModuleEntry）Hook 链

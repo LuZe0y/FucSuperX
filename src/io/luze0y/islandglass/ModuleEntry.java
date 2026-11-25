@@ -31,7 +31,7 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
  * 4. drawBounds 后：清除音乐卡片 #background_show 黑底、隐藏两层光效、充电 PAG 去黑底（AGSL unblack）、
  *    逐帧同步材质区域（应用收回原子岛的插值动画不走弹簧回调）、补救卡住的材质。
  *
- * 开关（setprop 后重启 island 进程生效）：
+ * 开关（LSPosed 远程偏好，模块界面修改即时生效）：
  *   persist.land.island_glass_on     原子岛总开关：1=启用（默认），0=全部 Hook 直通、原子岛恢复系统原版（切换时原子岛进程自动重启）
  *   persist.land.island_glass        strong|medium，默认 strong。浅色 409/410，深色 411/412
  *   persist.land.island_glass_trans  1=应用过渡动画期间也保持玻璃（默认），0=原版行为
@@ -899,7 +899,7 @@ public class ModuleEntry extends XposedModule {
     }
 
     private static String sysProp(String key, String def) {
-        return Conf.get(key, def); // 远程偏好优先，回退 persist.land.*
+        return Conf.get(key, def); // LSPosed 远程偏好
     }
 
     private static Field findField(Class<?> c, String name) {

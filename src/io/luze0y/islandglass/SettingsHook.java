@@ -303,7 +303,7 @@ final class SettingsHook {
     }
 
     static String sysProp(String key, String def) {
-        return Conf.get(key, def); // 远程偏好优先，回退 persist.land.*
+        return Conf.get(key, def); // LSPosed 远程偏好
     }
 
     /** 入口图标：圆角方形蓝色渐变底 + 白色 F，忽略系统着色，随 bounds 自适应。 */

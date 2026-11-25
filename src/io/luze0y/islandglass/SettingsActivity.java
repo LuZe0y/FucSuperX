@@ -86,7 +86,7 @@ public class SettingsActivity extends Activity {
             int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
             ic.setSystemBarsAppearance(dark ? 0 : light, light);
         }
-        // 等 LSPosed 服务绑定后再构建（读到远程偏好里的值）；800ms 内未绑定则回退 root 模式
+        // 等 LSPosed 服务绑定后再构建（读到远程偏好里的值）；800ms 内未绑定则显示激活指引，绑定后自动重建
         android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
         Prop.listen(() -> h.post(this::onPrefsBound));
         h.postDelayed(this::buildOnce, 800);
@@ -94,7 +94,7 @@ public class SettingsActivity extends Activity {
 
     private boolean built, builtRemote;
 
-    /** 800ms 内没等到 LSPosed 服务时页面先用系统属性构建，值可能是旧的；服务绑定后按真实设置重建一次。 */
+    /** 800ms 内没等到 LSPosed 服务时先显示激活指引；之后服务绑定（如框架启动较慢）再按真实设置重建一次。 */
     private void onPrefsBound() {
         if (isFinishing() || isDestroyed()) return;
         if (!built) {
@@ -113,8 +113,9 @@ public class SettingsActivity extends Activity {
         if (built || isFinishing() || isDestroyed()) return;
         built = true;
         builtRemote = Prop.remote();
-        Log.i(TAG, "module UI mode=" + (Prop.remote() ? "remote-prefs" : "root-fallback"));
+        Log.i(TAG, "module UI mode=" + (Prop.remote() ? "remote-prefs" : "inactive"));
         build();
+        maybeAutoCheck();
     }
 
     @Override
@@ -154,7 +155,8 @@ public class SettingsActivity extends Activity {
         });
         setContentView(frame);
 
-        if (island) buildIsland();
+        if (!Prop.remote()) buildInactive();
+        else if (island) buildIsland();
         else if (sysglass) buildSysGlass();
         else if (nc) buildNc();
         else buildMain();
@@ -174,13 +176,8 @@ public class SettingsActivity extends Activity {
         heading("设置", true);
         c = card();
         c.toggle("设置首页入口", "在设置顶部显示 FucSuperX", "persist.land.settings_entry", "1");
-        if (!Prop.remote()) { // root 回退模式下修改不会推送到作用域进程，仍需手动重启
-            c.action("重启设置", "修改设置入口后执行", "cmd_restart_settings", "am force-stop com.android.settings");
-        }
         buildAbout();
-        footer(Prop.remote()
-                ? "修改即时生效，无需 root。"
-                : "未连接 LSPosed 服务（模块未启用或框架过旧），已回退 root 模式：配置写入 persist.land.*。");
+        footer("修改即时生效，无需 root。");
     }
 
     private void buildIsland() {
@@ -207,15 +204,7 @@ public class SettingsActivity extends Activity {
         c.slider("折射范围", "拖到最左端为材质默认值", "persist.land.island_glass_refr_r", "-1", 0f, 120f, 1f, true, 0);
         c.toggle("诊断日志", "输出 [diag] 日志", "persist.land.island_glass_debug", "0");
 
-        if (!Prop.remote()) {
-            heading("生效", true);
-            c = card();
-            c.action("重启原子岛进程", "修改原子岛相关选项后执行", "cmd_restart_island",
-                    "pkill -f com.vivo.systemuiplugin:island || killall com.vivo.systemuiplugin:island");
-        }
-        footer(Prop.remote()
-                ? "点按滑块右侧的数值可恢复默认。修改即时生效，无需 root。"
-                : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启原子岛进程。");
+        footer("点按滑块右侧的数值可恢复默认。修改即时生效，无需 root。");
     }
 
     /** 系统液态玻璃：SystemUI 内除原子岛外的全部材质。全部为倍数，1.00 = 系统原值。 */
@@ -249,15 +238,7 @@ public class SettingsActivity extends Activity {
         c.slider("边缘高光强度", "倍数", "persist.land.sysglass_light", "1", 0f, 3f, 0.05f, false, 2);
         c.slider("边缘高光宽度", "倍数", "persist.land.sysglass_light_w", "1", 0f, 3f, 0.05f, false, 2);
 
-        if (!Prop.remote()) { // root 回退模式：配置不会推送到 SystemUI，仍需重启
-            heading("生效", true);
-            c = card();
-            c.action("重启 SystemUI", "root 模式下修改后需重启才会套用", "cmd_restart_systemui",
-                    "kill -9 $(pidof com.android.systemui)");
-        }
-        footer(Prop.remote()
-                ? "所有数值为相对系统原值的倍数，点按滑块右侧数值恢复 1.00。修改即时生效，无需 root。原子岛不受本页影响。"
-                : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。原子岛不受本页影响。");
+        footer("所有数值为相对系统原值的倍数，点按滑块右侧数值恢复 1.00。修改即时生效，无需 root。原子岛不受本页影响。");
     }
 
     /** 通知中心：顶部时间 / 日期的大小与位置，控制中心不受影响。 */
@@ -285,15 +266,21 @@ public class SettingsActivity extends Activity {
         c = card();
         c.toggle("横屏分栏", "时间日期在左半屏，通知在右半屏", "persist.land.nc_land_split", "1");
 
-        if (!Prop.remote()) { // root 回退模式：配置不会推送到 SystemUI，仍需重启
-            heading("生效", true);
-            c = card();
-            c.action("重启 SystemUI", "root 模式下修改后需重启才会套用", "cmd_restart_systemui",
-                    "kill -9 $(pidof com.android.systemui)");
-        }
-        footer(Prop.remote()
-                ? "只改通知中心的字号和位置，控制中心不受影响。点按滑块右侧数值恢复默认。修改即时生效。"
-                : "未连接 LSPosed 服务，已回退 root 模式：修改后需重启 SystemUI。");
+        footer("只改通知中心的字号和位置，控制中心不受影响。点按滑块右侧数值恢复默认。修改即时生效。");
+    }
+
+    static final String WRITE_FAIL = "写入失败：未连接 LSPosed 服务";
+
+    /** 未连接 LSPosed 服务：配置只走 LSPosed 远程偏好，提示用户去框架里激活模块。 */
+    private void buildInactive() {
+        heading("模块未激活", false);
+        Card c = card();
+        c.row("未连接 LSPosed 服务", "FucSuperX 通过 LSPosed 模块通道读写配置，需要先在 LSPosed 中激活模块", null, null);
+        c.row("1. 启用模块", "打开 LSPosed 管理器 → 模块 → 打开 FucSuperX 的启用开关", null, null);
+        c.row("2. 勾选作用域", "系统界面 com.android.systemui、com.vivo.systemuiplugin、设置 com.android.settings", null, null);
+        c.row("3. 软重启", "在 LSPosed 管理器右上角菜单选择「软重启」（或直接重启手机），之后重新进入本页", null, null);
+        if (!island && !sysglass && !nc) buildAbout();
+        footer("已激活仍显示本页：确认 LSPosed 版本支持 libxposed API 101 及以上，且软重启后模块已加载。");
     }
 
     private void footer(String s) {
@@ -576,14 +563,20 @@ public class SettingsActivity extends Activity {
         }
 
         void toggle(String title, String summary, String key, String def) {
+            toggle(title, summary, () -> !"0".equals(Prop.get(key, def).trim()), on -> Prop.set(key, on ? "1" : "0"));
+        }
+
+        /** 开关行：读写由调用方提供（如模块界面本地设置），写入失败时开关弹回。 */
+        void toggle(String title, String summary, java.util.function.BooleanSupplier get,
+                    java.util.function.Predicate<Boolean> set) {
             Switch sw = new Switch(getContext());
-            sw.setChecked(!"0".equals(Prop.get(key, def).trim()), false);
+            sw.setChecked(get.getAsBoolean(), false);
             row(title, summary, sw, v -> {
                 boolean on = !sw.checked;
                 sw.setChecked(on, true); // 先动画，写入失败再弹回
-                if (!Prop.set(key, on ? "1" : "0")) {
+                if (!set.test(on)) {
                     sw.setChecked(!on, true);
-                    toast("写入失败：需要 root");
+                    toast(WRITE_FAIL);
                 }
             });
         }
@@ -596,7 +589,7 @@ public class SettingsActivity extends Activity {
             Segmented s = new Segmented(getContext(), labels, i);
             s.onPick = which -> {
                 if (!Prop.set(key, vals[which])) {
-                    toast("写入失败：需要 root");
+                    toast(WRITE_FAIL);
                     s.select(Math.max(0, indexOf(vals, Prop.get(key, def).trim())), true);
                 }
             };
@@ -645,7 +638,7 @@ public class SettingsActivity extends Activity {
                 if (v.equals(last[0]) || (!fin && (!Prop.remote() || now - lastAt[0] < 100))) return;
                 last[0] = v;
                 lastAt[0] = now;
-                if (!Prop.set(key, v) && fin) toast("写入失败：需要 root");
+                if (!Prop.set(key, v) && fin) toast(WRITE_FAIL);
             };
             val.setOnClickListener(v -> {
                 s.setIndex(toIdx.applyAsInt(def));
@@ -670,7 +663,7 @@ public class SettingsActivity extends Activity {
                     .setSingleChoiceItems(labels, sel[0], (dlg, which) -> {
                         sel[0] = which;
                         val.setText(labels[which]);
-                        if (!Prop.set(key, vals[which])) toast("写入失败：需要 root");
+                        if (!Prop.set(key, vals[which])) toast(WRITE_FAIL);
                         dlg.dismiss();
                     })
                     .setNegativeButton("取消", null)
@@ -708,7 +701,7 @@ public class SettingsActivity extends Activity {
                 cd.setOnClickListener(v -> {
                     if (cur[0] == idx) return;
                     if (!Prop.set(key, vals[idx])) {
-                        toast("写入失败：需要 root");
+                        toast(WRITE_FAIL);
                         return;
                     }
                     cur[0] = idx;
@@ -729,11 +722,6 @@ public class SettingsActivity extends Activity {
         /** 跳转行：标题 + 摘要 + 右箭头。 */
         void link(String title, String summary, Runnable go) {
             row(title, summary, withChevron(null), v -> go.run());
-        }
-
-        void action(String title, String summary, String cmdKey, String legacyCmd) {
-            row(title, summary, withChevron(null), v -> toast(Prop.restart(cmdKey, legacyCmd)
-                    ? "已执行" : "执行失败：LSPosed 服务不可用且没有 root"));
         }
     }
 
@@ -1143,6 +1131,10 @@ public class SettingsActivity extends Activity {
     private static final String[] MIRRORS = {"https://gh-proxy.org/", "https://v4.gh-proxy.org/", "https://cdn.gh-proxy.org/", ""};
     private static final String ACTION_INSTALL = "io.luze0y.islandglass.INSTALL_STATUS";
     private volatile boolean checking;
+    private TextView updVer; // 当前页面上「检查更新」右侧的版本号（重建页面后会换成新的 View）
+    /** 模块界面本地设置（不需要 LSPosed 服务）：自动检查更新开关与上次自动检查时间。 */
+    private static final String K_AUTO = "auto_update", K_LAST = "last_auto_check";
+    private static final long AUTO_INTERVAL = 6 * 3600_000L;
     private android.content.BroadcastReceiver installRx;
 
     private void buildAbout() {
@@ -1154,8 +1146,27 @@ public class SettingsActivity extends Activity {
         c.link("酷安主页", "coolapk.com/u/" + COOLAPK_UID, this::openCoolapk);
         c.link("GitHub 仓库", "github.com/" + REPO, () -> openBrowser("https://github.com/" + REPO));
         TextView ver = valueText();
-        ver.setText(curVersion());
-        c.row("检查更新", "通过国内加速镜像下载 GitHub Release", withChevron(ver), v -> checkUpdate(ver));
+        ver.setText(checking ? "检查中…" : curVersion());
+        updVer = ver;
+        c.row("检查更新", "通过国内加速镜像下载 GitHub Release", withChevron(ver), v -> checkUpdate(false));
+        c.toggle("自动检查更新", "进入模块主页时自动检查，每 6 小时最多一次，有新版本才提示",
+                () -> ui().getBoolean(K_AUTO, true), on -> ui().edit().putBoolean(K_AUTO, on).commit());
+    }
+
+    private android.content.SharedPreferences ui() {
+        return getSharedPreferences("ui", MODE_PRIVATE);
+    }
+
+    /** 进入模块主页时自动检查一次更新：距上次自动检查不足 6 小时则跳过；静默进行，只在有新版本时弹窗。 */
+    private void maybeAutoCheck() {
+        if (island || sysglass || nc) return;
+        android.content.SharedPreferences sp = ui();
+        if (!sp.getBoolean(K_AUTO, true)) return;
+        long now = System.currentTimeMillis(), last = sp.getLong(K_LAST, 0);
+        if (last > 0 && now >= last && now - last < AUTO_INTERVAL) return; // now < last：系统时间被往回调过，照常检查
+        sp.edit().putLong(K_LAST, now).apply();
+        Log.i(TAG, "auto update check");
+        checkUpdate(true);
     }
 
     private int dialogTheme() {
@@ -1287,10 +1298,11 @@ public class SettingsActivity extends Activity {
         throw new java.io.IOException(last == null ? "连接超时" : String.valueOf(last.getMessage()));
     }
 
-    private void checkUpdate(TextView ver) {
+    /** silent：自动检查，失败和已是最新都不提示。 */
+    private void checkUpdate(boolean silent) {
         if (checking) return;
         checking = true;
-        ver.setText("检查中…");
+        if (updVer != null) updVer.setText("检查中…");
         new Thread(() -> {
             Object[] r = null;
             String err = null;
@@ -1304,22 +1316,23 @@ public class SettingsActivity extends Activity {
             final String e = err;
             runOnUiThread(() -> {
                 checking = false;
-                ver.setText(curVersion());
+                if (updVer != null) updVer.setText(curVersion());
                 if (isFinishing() || isDestroyed()) return;
-                if (res == null) toast("检查更新失败：" + e);
-                else {
+                if (res == null) {
+                    if (!silent) toast("检查更新失败：" + e);
+                } else {
                     @SuppressWarnings("unchecked")
                     java.util.List<String> order = (java.util.List<String>) res[1];
-                    onRelease((org.json.JSONObject) res[0], order);
+                    onRelease((org.json.JSONObject) res[0], order, silent);
                 }
             });
         }, "fsx-update").start();
     }
 
-    private void onRelease(org.json.JSONObject rel, java.util.List<String> bases) {
+    private void onRelease(org.json.JSONObject rel, java.util.List<String> bases, boolean silent) {
         String tag = rel.optString("tag_name"), cur = curVersion();
         if (cmpVer(tag, cur) <= 0) {
-            toast("已是最新版本 " + cur);
+            if (!silent) toast("已是最新版本 " + cur);
             return;
         }
         String apk = null;
@@ -1498,8 +1511,8 @@ public class SettingsActivity extends Activity {
     }
 
     /**
-     * 配置读写。优先走 LSPosed 远程偏好（无需 root，框架同步给作用域进程，键名去掉 persist.land.）；
-     * 服务不可用时回退旧方案：读 SystemProperties，写 su setprop。
+     * 配置读写：只走 LSPosed 远程偏好（框架同步给作用域进程，键名去掉 persist.land.）。
+     * 未连接 LSPosed 服务时读到默认值、写入失败，页面显示激活指引。
      */
     static final class Prop {
         private static final String PREFIX = "persist.land.";
@@ -1552,39 +1565,7 @@ public class SettingsActivity extends Activity {
                 } catch (Throwable ignored) {
                 }
             }
-            return sys(key, def);
-        }
-
-        /** 让作用域进程自行退出重启（远程偏好写时间戳）；无服务时回退 su 命令。 */
-        static boolean restart(String cmdKey, String legacyCmd) {
-            android.content.SharedPreferences p = prefs;
-            if (p != null) {
-                try {
-                    p.edit().putString(cmdKey, String.valueOf(System.currentTimeMillis())).apply();
-                    return true;
-                } catch (Throwable t) {
-                    Log.w(TAG, "restart via prefs: " + t);
-                }
-            }
-            return su(legacyCmd);
-        }
-
-        private static String sys(String key, String def) {
-            try {
-                Class<?> sp = Class.forName("android.os.SystemProperties");
-                String v = (String) sp.getMethod("get", String.class, String.class).invoke(null, key, def);
-                return v == null || v.isEmpty() ? def : v;
-            } catch (Throwable t) {
-                try {
-                    Process p = Runtime.getRuntime().exec(new String[]{"getprop", key});
-                    try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                        String v = r.readLine();
-                        return v == null || v.isEmpty() ? def : v.trim();
-                    }
-                } catch (Throwable t2) {
-                    return def;
-                }
-            }
+            return def;
         }
 
         static boolean set(String key, String value) {
@@ -1598,16 +1579,7 @@ public class SettingsActivity extends Activity {
                     Log.w(TAG, "prefs write: " + t);
                 }
             }
-            return su("setprop " + key + " " + value);
-        }
-
-        static boolean su(String cmd) {
-            try {
-                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
-                return p.waitFor() == 0;
-            } catch (Throwable t) {
-                return false;
-            }
+            return false;
         }
     }
 }
