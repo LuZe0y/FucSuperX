@@ -31,7 +31,7 @@ import io.github.libxposed.api.XposedModule;
  * 只作用于通知中心（父级为 VivoSimpleHeaderContainer 的 VivoQSHeader），控制中心不动；横屏不动。
  *   nc_bigclock      1 开（默认）/ 0 关
  *   nc_clock_scale   时间字号倍数 1~3，默认 2
- *   nc_land_split    横屏分栏时，时间日期在左半屏垂直居中（与 NcLand 共用开关）
+ *   nc_land_split    横屏分栏时，时间日期在所在半屏垂直居中（与 NcLand 共用开关，左右由 nc_land_side 决定）
  *   nc_clock_font    sys=系统默认 | lock=跟随锁屏（时间、日期都取锁屏当前字体）| /system/fonts 下的字体文件名
  *   nc_clock_wght    自选字体的字重 100~900，-1 = 字体默认
  *   nc_clock_offset  时间 / 日期整体下移距离 0~200dp，默认 42（约为原顶部距离的一倍）
@@ -527,7 +527,7 @@ final class NcHeader {
         return Math.max(0, sb + Math.round(8 * h.getResources().getDisplayMetrics().density) - y);
     }
 
-    /** 竖屏：下移距离；横屏分栏：在左半屏垂直居中。按布局位置计算（不含动画位移），测量与布局一致。 */
+    /** 竖屏：下移距离；横屏分栏：在所在半屏垂直居中。按布局位置计算（不含动画位移），测量与布局一致。 */
     private int topOffset(View h, int content) {
         if (h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) return offset(h);
         int y = 0;

@@ -20,16 +20,17 @@ import io.github.libxposed.api.XposedModule;
 
 /**
  * 横屏通知中心分栏：原版把顶部时间日期（qs_frame）和通知列表（notification_stack_scroller）
- * 都放在屏幕中间同一列。横屏时改为左半屏放时间日期、右半屏放通知，通知从顶部开始排列。
+ * 都放在屏幕中间同一列。横屏时改为一侧半屏放时间日期、另一侧半屏放通知（默认时间日期在左），通知从顶部开始排列。
  * 清除全部按钮移到时间下方；左右两栏与屏幕边缘的留白对称（按挖孔较宽的一侧）。
  * 只改这些控件的位置和宽度，不改内容与行为；竖屏不动。
  *   nc_land_split   1 开（默认）/ 0 关
+ *   nc_land_side    left = 时间日期在左、通知在右（默认）/ right = 时间日期在右、通知在左
  */
 final class NcLand {
     private static final String TAG = "FucSuperX";
     private static final String SYSUI = "com.android.systemui";
     private final XposedModule module;
-    private volatile boolean on = true;
+    private volatile boolean on = true, clockRight;
     private Class<?> container;
     private int idQs, idNs, idClear;
     private static final int ID_CLOCK = 0x770b030d; // 插件 header_clock
@@ -108,7 +109,7 @@ final class NcLand {
         return id == 0 ? null : p.findViewById(id);
     }
 
-    /** 左半屏：时间日期；右半屏：通知。避开挖孔。 */
+    /** 时间日期与通知各占半屏（左右由 nc_land_side 决定），避开挖孔。 */
     private void split(ViewGroup p) {
         int W = p.getWidth(), H = p.getHeight();
         if (W <= H) return;
@@ -122,8 +123,13 @@ final class NcLand {
             safeR = dc.getSafeInsetRight();
         }
         int m = Math.max(safeL, safeR), mid = W / 2; // 两侧留白对称
-        place(qs, m, mid - m);
-        place(ns, mid, W - m - mid);
+        if (clockRight) {
+            place(ns, m, mid - m);
+            place(qs, mid, W - m - mid);
+        } else {
+            place(qs, m, mid - m);
+            place(ns, mid, W - m - mid);
+        }
     }
 
     /** 清除全部按钮：时间正下方，水平居中。 */
@@ -185,5 +191,6 @@ final class NcLand {
 
     private void load() {
         on = !"0".equals(Conf.get("persist.land.nc_land_split", "1").trim());
+        clockRight = "right".equals(Conf.get("persist.land.nc_land_side", "left").trim());
     }
 }

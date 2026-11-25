@@ -288,7 +288,9 @@ public class SettingsActivity extends Activity {
 
         heading("横屏", true);
         c = card();
-        c.toggle("横屏分栏", "时间日期在左半屏，通知在右半屏", "persist.land.nc_land_split", "1");
+        c.toggle("横屏分栏", "时间日期与通知各占半屏", "persist.land.nc_land_split", "1");
+        c.segmented("时间日期位置", "通知在另一侧", "persist.land.nc_land_side", "left",
+                new String[]{"left", "right"}, new String[]{"左半屏", "右半屏"});
 
         footer("只改通知中心的字号和位置，控制中心不受影响。点按滑块右侧数值恢复默认。修改即时生效。");
     }
