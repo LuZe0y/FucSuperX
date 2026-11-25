@@ -417,9 +417,9 @@ public class SettingsActivity extends Activity {
         et.setMinLines(2);
         et.setMaxLines(6);
         FrameLayout box = new FrameLayout(this);
-        box.setPadding(dp(20), dp(8), dp(20), 0);
+        styleInput(et);
         box.addView(et);
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle("导入参数包")
                 .setMessage("剪贴板里没有分享码")
                 .setView(box)
@@ -440,7 +440,7 @@ public class SettingsActivity extends Activity {
         msg.append(p.changed == 0 ? "全为默认参数" : "包含 " + p.changed + " 项改动，其余为默认值");
         if (p.skipped > 0) msg.append("\n已忽略 ").append(p.skipped).append(" 项无法识别的参数");
         msg.append("\n\n「导入并使用」会替换当前参数包，「存为备份」不影响当前效果。");
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle("导入参数包")
                 .setMessage(msg)
                 .setNegativeButton("取消", null)
@@ -475,7 +475,7 @@ public class SettingsActivity extends Activity {
         Backup def = defaultBackup();
         Pack.Parsed p = parsedOf(def);
         String to = p != null ? "默认参数包「" + def.name + "」（会覆盖你自己的设置）" : "你自己的设置";
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle("清除参数包")
                 .setMessage("恢复为" + to + "，备份不受影响。")
                 .setNegativeButton("取消", null)
@@ -581,9 +581,9 @@ public class SettingsActivity extends Activity {
         et.setText(preset);
         et.setSelection(et.getText().length());
         FrameLayout box = new FrameLayout(this);
-        box.setPadding(dp(20), dp(8), dp(20), 0);
+        styleInput(et);
         box.addView(et);
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle(title)
                 .setView(box)
                 .setNegativeButton("取消", null)
@@ -602,7 +602,7 @@ public class SettingsActivity extends Activity {
         Backup def = defaultBackup();
         boolean isDef = def != null && def.id.equals(b.id);
         String[] items = {"加载并使用", "复制分享码", isDef ? "取消默认参数包" : "设为默认参数包", "重命名", "删除"};
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle(b.name)
                 .setItems(items, (d, w) -> {
                     switch (w) {
@@ -639,7 +639,7 @@ public class SettingsActivity extends Activity {
     }
 
     private void deleteBackup(Backup b, boolean isDef) {
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle("删除备份")
                 .setMessage("删除「" + b.name + "」？" + (isDef ? "删除后将不再有默认参数包。" : ""))
                 .setNegativeButton("取消", null)
@@ -668,7 +668,7 @@ public class SettingsActivity extends Activity {
             items[i + 1] = list.get(i).name;
             if (def != null && def.id.equals(list.get(i).id)) sel = i + 1;
         }
-        new android.app.AlertDialog.Builder(this, dialogTheme())
+        new DialogBuilder()
                 .setTitle("默认参数包")
                 .setSingleChoiceItems(items, sel, (d, w) -> {
                     packs().edit().putString("default", w == 0 ? "" : list.get(w - 1).id).commit();
@@ -1052,9 +1052,7 @@ public class SettingsActivity extends Activity {
             if (i < 0) i = Math.max(0, indexOf(vals, def));
             final int[] sel = {i};
             val.setText(labels[i]);
-            row(title, summary, withChevron(val), v -> new android.app.AlertDialog.Builder(getContext(),
-                    dark ? android.R.style.Theme_DeviceDefault_Dialog_Alert
-                            : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+            row(title, summary, withChevron(val), v -> new DialogBuilder()
                     .setTitle(title)
                     .setSingleChoiceItems(labels, sel[0], (dlg, which) -> {
                         sel[0] = which;
@@ -1565,8 +1563,479 @@ public class SettingsActivity extends Activity {
         checkUpdate(true);
     }
 
-    private int dialogTheme() {
-        return dark ? android.R.style.Theme_DeviceDefault_Dialog_Alert : android.R.style.Theme_DeviceDefault_Light_Dialog_Alert;
+    // ---------------- 对话框：复刻 OriginUI（系统设置「关于手机 → 修改设备名称」）----------------
+
+    /** 对话框卡片的圆角（系统实测 112px @ 560dpi）。 */
+    private static final int DLG_RADIUS = 32;
+
+    /**
+     * OriginUI 对话框（VCustomRoundRectLayout）：居中圆角卡片 + 液态玻璃材质，标题居中，按钮为整行胶囊纵向排列，
+     * 主按钮蓝底在上。卡片为液态玻璃材质 + 半透明底色（见 GlassCard）。
+     * 系统不支持材质时退回实色圆角卡片。用法与 AlertDialog.Builder 相同。
+     */
+    private final class DialogBuilder {
+        CharSequence title, message;
+        View view;
+        CharSequence[] items;
+        boolean single;
+        int checked = -1;
+        android.content.DialogInterface.OnClickListener itemClick;
+        final CharSequence[] btn = new CharSequence[3]; // 0 确定（主按钮）1 中性 2 取消
+        final android.content.DialogInterface.OnClickListener[] btnClick = new android.content.DialogInterface.OnClickListener[3];
+        boolean cancelable = true;
+
+        DialogBuilder setTitle(CharSequence t) {
+            title = t;
+            return this;
+        }
+
+        DialogBuilder setMessage(CharSequence m) {
+            message = m;
+            return this;
+        }
+
+        DialogBuilder setView(View v) {
+            view = v;
+            return this;
+        }
+
+        DialogBuilder setItems(CharSequence[] it, android.content.DialogInterface.OnClickListener l) {
+            items = it;
+            itemClick = l;
+            single = false;
+            return this;
+        }
+
+        DialogBuilder setSingleChoiceItems(CharSequence[] it, int sel, android.content.DialogInterface.OnClickListener l) {
+            items = it;
+            checked = sel;
+            itemClick = l;
+            single = true;
+            return this;
+        }
+
+        DialogBuilder setPositiveButton(CharSequence t, android.content.DialogInterface.OnClickListener l) {
+            btn[0] = t;
+            btnClick[0] = l;
+            return this;
+        }
+
+        DialogBuilder setNeutralButton(CharSequence t, android.content.DialogInterface.OnClickListener l) {
+            btn[1] = t;
+            btnClick[1] = l;
+            return this;
+        }
+
+        DialogBuilder setNegativeButton(CharSequence t, android.content.DialogInterface.OnClickListener l) {
+            btn[2] = t;
+            btnClick[2] = l;
+            return this;
+        }
+
+        DialogBuilder setCancelable(boolean c) {
+            cancelable = c;
+            return this;
+        }
+
+        GlassDialog create() {
+            return new GlassDialog(this);
+        }
+
+        GlassDialog show() {
+            GlassDialog d = create();
+            d.show();
+            return d;
+        }
+    }
+
+    /** 当前显示的对话框（后打开的在后面）；返回键先关闭最上面的。 */
+    private final java.util.ArrayList<GlassDialog> openDialogs = new java.util.ArrayList<>();
+
+    @Override
+    public void onBackPressed() {
+        if (!openDialogs.isEmpty()) {
+            GlassDialog d = openDialogs.get(openDialogs.size() - 1);
+            if (d.cancelable) d.cancel();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    /**
+     * 对话框画在本页窗口里（加到 DecorView 上的遮罩层 + 卡片），而不是单独的 Dialog 窗口：
+     * 液态玻璃材质在独立的对话框窗口里采样不到下层内容（实测整张卡片透明），在本窗口内与顶栏、按钮一样正常。
+     */
+    private final class GlassDialog implements android.content.DialogInterface {
+        final boolean cancelable;
+        private final FrameLayout root;
+        private final View scrim;
+        private final GlassCard card;
+        private final android.widget.EditText edit;
+        private TextView msg;
+        private boolean shown, gone;
+
+        GlassDialog(DialogBuilder b) {
+            cancelable = b.cancelable;
+            Context c = SettingsActivity.this;
+            boolean anyBtn = b.btn[0] != null || b.btn[1] != null || b.btn[2] != null;
+
+            LinearLayout body = new LinearLayout(c);
+            body.setOrientation(LinearLayout.VERTICAL);
+            body.setPadding(0, dp(30), 0, anyBtn ? 0 : dp(14));
+            if (b.title != null) {
+                TextView t = text(b.title.toString(), 19, cTitle, true);
+                t.setGravity(Gravity.CENTER_HORIZONTAL);
+                body.addView(t, margins(-1, dp(24), 0, dp(24), 0));
+            }
+            if (b.message != null) {
+                msg = text(b.message.toString(), 16, cTitle, false);
+                msg.setLineSpacing(dp(3), 1f);
+                body.addView(msg, margins(-1, dp(24), b.title != null ? dp(20) : 0, dp(24), 0));
+                msg.post(() -> { // 单行居中，多行左对齐（与 OriginUI 一致）
+                    if (msg.getLineCount() <= 1) msg.setGravity(Gravity.CENTER_HORIZONTAL);
+                });
+            }
+            if (b.view != null) {
+                body.addView(b.view, margins(-1, dp(24), b.title != null || b.message != null ? dp(14) : 0, dp(24), 0));
+            }
+            if (b.items != null) addItems(body, b);
+
+            final int maxH = (int) (c.getResources().getDisplayMetrics().heightPixels * 0.6f);
+            ScrollView sv = new ScrollView(c) {
+                @Override
+                protected void onMeasure(int w, int h) {
+                    int lim = MeasureSpec.getMode(h) == MeasureSpec.UNSPECIFIED ? maxH : Math.min(maxH, MeasureSpec.getSize(h));
+                    super.onMeasure(w, MeasureSpec.makeMeasureSpec(lim, MeasureSpec.AT_MOST));
+                }
+            };
+            sv.setVerticalScrollBarEnabled(false);
+            sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            sv.addView(body);
+
+            card = new GlassCard(c);
+            card.addView(sv, new LinearLayout.LayoutParams(-1, -2, 1f)); // 空间不够（如弹出键盘）时内容区收缩、按钮保持可见
+            if (anyBtn) {
+                LinearLayout bar = new LinearLayout(c);
+                bar.setOrientation(LinearLayout.VERTICAL);
+                bar.setPadding(dp(20), dp(30), dp(20), dp(20));
+                boolean first = true;
+                for (int k = 0; k < 3; k++) {
+                    if (b.btn[k] == null) continue;
+                    final int which = k == 0 ? BUTTON_POSITIVE : k == 1 ? BUTTON_NEUTRAL : BUTTON_NEGATIVE;
+                    final android.content.DialogInterface.OnClickListener l = b.btnClick[k];
+                    TextView p = pill(b.btn[k], k == 0);
+                    p.setOnClickListener(v -> {
+                        if (gone) return;
+                        if (l != null) l.onClick(this, which);
+                        dismiss();
+                    });
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(46));
+                    if (!first) lp.topMargin = dp(12);
+                    first = false;
+                    bar.addView(p, lp);
+                }
+                card.addView(bar, new LinearLayout.LayoutParams(-1, -2));
+            }
+            card.setClickable(true);
+
+            root = new FrameLayout(c);
+            root.setClickable(true); // 对话框打开时吞掉下层页面的触摸
+            scrim = new View(c);
+            scrim.setBackgroundColor(dark ? 0x99000000 : 0x4D000000);
+            scrim.setOnClickListener(v -> {
+                if (cancelable) cancel();
+            });
+            root.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
+            FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER);
+            cl.setMargins(dp(28), dp(24), dp(28), dp(24));
+            root.addView(card, cl);
+            root.setOnApplyWindowInsetsListener((v, in) -> { // 卡片避开状态栏、导航栏和键盘，遮罩铺满全屏
+                android.graphics.Insets s = in.getInsets(WindowInsets.Type.systemBars()
+                        | WindowInsets.Type.displayCutout() | WindowInsets.Type.ime());
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) card.getLayoutParams();
+                lp.topMargin = s.top + dp(24);
+                lp.bottomMargin = s.bottom + dp(24);
+                card.setLayoutParams(lp);
+                return in;
+            });
+            edit = findEdit(b.view);
+        }
+
+        void show() {
+            if (shown || isFinishing() || isDestroyed()) return;
+            shown = true;
+            android.view.ViewGroup decor = (android.view.ViewGroup) getWindow().getDecorView();
+            decor.addView(root, new FrameLayout.LayoutParams(-1, -1));
+            openDialogs.add(this);
+            root.requestApplyInsets();
+            scrim.setAlpha(0f);
+            scrim.animate().alpha(1f).setDuration(250).start();
+            card.setAlpha(0f);
+            card.setScaleX(0.9f);
+            card.setScaleY(0.9f);
+            card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(EASE_SWITCH).start();
+            if (edit != null) {
+                getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                edit.requestFocus();
+                edit.postDelayed(() -> {
+                    android.view.inputmethod.InputMethodManager imm =
+                            getSystemService(android.view.inputmethod.InputMethodManager.class);
+                    if (imm != null && !gone) imm.showSoftInput(edit, 0);
+                }, 200);
+            }
+        }
+
+        @Override
+        public void dismiss() {
+            if (!shown || gone) return;
+            gone = true;
+            openDialogs.remove(this);
+            if (edit != null) {
+                android.view.inputmethod.InputMethodManager imm =
+                        getSystemService(android.view.inputmethod.InputMethodManager.class);
+                if (imm != null) imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
+                edit.clearFocus();
+            }
+            scrim.animate().alpha(0f).setDuration(200).start();
+            card.animate().alpha(0f).scaleX(0.94f).scaleY(0.94f).setDuration(200).setInterpolator(EASE_UP)
+                    .withEndAction(() -> {
+                        android.view.ViewParent par = root.getParent();
+                        if (par instanceof android.view.ViewGroup) ((android.view.ViewGroup) par).removeView(root);
+                    }).start();
+        }
+
+        @Override
+        public void cancel() {
+            dismiss();
+        }
+
+        void setMessage(CharSequence m) {
+            if (msg != null) msg.setText(m);
+        }
+
+        /** 列表项：整行可点，按下时圆角高亮；单选时选中项为强调色并带对勾。 */
+        private void addItems(LinearLayout body, DialogBuilder b) {
+            Context c = SettingsActivity.this;
+            LinearLayout list = new LinearLayout(c);
+            list.setOrientation(LinearLayout.VERTICAL);
+            final TextView[] labels = new TextView[b.items.length];
+            final TextView[] checks = new TextView[b.items.length];
+            for (int i = 0; i < b.items.length; i++) {
+                final int which = i;
+                LinearLayout row = new LinearLayout(c);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setMinimumHeight(dp(54));
+                row.setPadding(dp(16), dp(6), dp(16), dp(6));
+                android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+                GradientDrawable pressed = new GradientDrawable();
+                pressed.setCornerRadius(dp(16));
+                pressed.setColor(cPress);
+                sl.addState(new int[]{android.R.attr.state_pressed}, pressed);
+                sl.addState(new int[0], new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+                row.setBackground(sl);
+                TextView t = text(b.items[i].toString(), 16, cTitle, false);
+                row.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+                labels[i] = t;
+                if (b.single) {
+                    TextView ck = text("✓", 17, cAccent, true);
+                    row.addView(ck, new LinearLayout.LayoutParams(-2, -2));
+                    checks[i] = ck;
+                }
+                row.setOnClickListener(v -> {
+                    if (gone) return;
+                    if (b.single) {
+                        for (int k = 0; k < labels.length; k++) mark(labels[k], checks[k], k == which);
+                        if (b.itemClick != null) b.itemClick.onClick(this, which);
+                    } else {
+                        if (b.itemClick != null) b.itemClick.onClick(this, which);
+                        dismiss();
+                    }
+                });
+                if (b.single) mark(t, checks[i], i == b.checked);
+                list.addView(row, margins(-1, dp(12), 0, dp(12), 0));
+            }
+            body.addView(list, margins(-1, 0, b.title != null || b.message != null ? dp(14) : 0, 0, 0));
+        }
+
+        private void mark(TextView label, TextView check, boolean on) {
+            label.setTextColor(on ? cAccent : cTitle);
+            if (check != null) check.setVisibility(on ? View.VISIBLE : View.INVISIBLE);
+        }
+
+        /** 整行胶囊按钮；按下时轻微缩小变淡。 */
+        private TextView pill(CharSequence s, boolean primary) {
+            TextView t = text(s.toString(), 17, primary ? Color.WHITE : cTitle, true);
+            t.setGravity(Gravity.CENTER);
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadius(dp(23));
+            g.setColor(primary ? cAccent : (dark ? 0x1FFFFFFF : 0x0F000000));
+            t.setBackground(g);
+            t.setOnTouchListener((v, e) -> {
+                int a = e.getActionMasked();
+                if (a == MotionEvent.ACTION_DOWN) {
+                    v.animate().scaleX(0.96f).scaleY(0.96f).alpha(0.8f).setDuration(120).start();
+                } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                    v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220).start();
+                }
+                return false;
+            });
+            return t;
+        }
+    }
+
+    /** 对话框背后毛玻璃的模糊半径（dp）。 */
+    private static final int DLG_BLUR_DP = 30;
+    /** 毛玻璃上叠的白 / 黑底色的不透明度：0x33 = 20%。 */
+    private static final int DLG_TINT_ALPHA = 0x33;
+
+    /**
+     * 对话框卡片 = 下层页面的模糊副本 + 半透明底色 + 液态玻璃材质（409 / 411，contentType 2，提供边缘高光）。
+     * 液态玻璃材质只采样本窗口之下的图层，同一窗口里的页面它模糊不到（实测模糊半径设多大都看得清背后文字），
+     * 所以卡片自己把背后那块页面画进来，再用 RenderEffect 模糊。没有硬件加速时退回不透明底色。
+     */
+    private final class GlassCard extends LinearLayout {
+        private final android.graphics.RenderNode node = new android.graphics.RenderNode("dialogBackdrop");
+        private final Paint tint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int[] pos = new int[2], base = new int[2];
+        private boolean tried;
+
+        GlassCard(Context c) {
+            super(c);
+            setOrientation(VERTICAL);
+            setWillNotDraw(false);
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View v, Outline o) {
+                    o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(DLG_RADIUS));
+                }
+            });
+            setClipToOutline(true);
+            float r = dp(DLG_BLUR_DP);
+            node.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(r, r, android.graphics.Shader.TileMode.CLAMP));
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            if (tried) return;
+            tried = true;
+            // 等首次布局完成（材质按 View 尺寸建立）后再套用
+            getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    if (getWidth() == 0) return;
+                    getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                    applyGlass();
+                }
+            });
+        }
+
+        @Override
+        protected void dispatchDraw(Canvas c) {
+            boolean blurred = drawBackdrop(c);
+            tint.setColor(blurred ? withAlpha(cCard, DLG_TINT_ALPHA) : cCard);
+            c.drawRect(0, 0, getWidth(), getHeight(), tint); // 圆角由 outline 裁剪
+            super.dispatchDraw(c);
+        }
+
+        /** 把卡片背后那块页面画进 RenderNode 并模糊；卡片缩放动画期间按当前缩放换算，保持与背后对齐。 */
+        private boolean drawBackdrop(Canvas c) {
+            View page = frame;
+            if (!c.isHardwareAccelerated() || page == null || !page.isAttachedToWindow() || getWidth() == 0) return false;
+            page.getLocationInWindow(base);
+            getLocationInWindow(pos);
+            float sx = getScaleX() == 0f ? 1f : getScaleX(), sy = getScaleY() == 0f ? 1f : getScaleY();
+            node.setPosition(0, 0, getWidth(), getHeight());
+            Canvas rc = node.beginRecording();
+            try {
+                rc.drawColor(cBg); // 页面底色在 DecorView 上，单画页面时要补上
+                rc.scale(1f / sx, 1f / sy);
+                rc.translate(base[0] - pos[0], base[1] - pos[1]);
+                page.draw(rc);
+            } finally {
+                node.endRecording();
+            }
+            c.drawRenderNode(node);
+            return true;
+        }
+
+        private void applyGlass() {
+            Object ok = viewCall(this, "setMaterial", dark ? 411 : 409, 2);
+            if (Boolean.TRUE.equals(ok)) {
+                float r = dp(DLG_RADIUS);
+                viewCall(this, "setMaterialCornerRadius", r, r, r, r);
+                viewCall(this, "setMaterialAlpha", 1f);
+                viewCall(this, "setMaterialFPS", 60, true);
+                viewCall(this, "setGlassEffectInnerStrokeLight", -1, dark ? 0.24f : 0.3f, 0.9f, -2f, 1f, 3, 0.64f);
+            }
+            Log.i(TAG, "dialog glass material " + ok + " (" + (dark ? 411 : 409) + ", ct 2), backdrop blur " + DLG_BLUR_DP + "dp");
+        }
+    }
+
+    /** 按名称和参数个数反射调用 View 的方法，数字参数按目标类型转换；找不到或失败时返回 null。 */
+    private static Object viewCall(View v, String name, Object... args) {
+        for (Method m : View.class.getMethods()) {
+            if (!m.getName().equals(name) || m.getParameterCount() != args.length) continue;
+            Class<?>[] ps = m.getParameterTypes();
+            Object[] a = new Object[args.length];
+            boolean match = true;
+            for (int i = 0; i < args.length && match; i++) {
+                Object x = args[i];
+                if (ps[i] == float.class && x instanceof Number) a[i] = ((Number) x).floatValue();
+                else if (ps[i] == int.class && x instanceof Number) a[i] = ((Number) x).intValue();
+                else if (ps[i] == boolean.class && x instanceof Boolean) a[i] = x;
+                else match = false;
+            }
+            if (!match) continue;
+            try {
+                return m.invoke(v, a);
+            } catch (Throwable t) {
+                Log.w(TAG, "View." + name + ": " + t);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static LinearLayout.LayoutParams margins(int w, int l, int t, int r, int b) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, -2);
+        lp.setMargins(l, t, r, b);
+        return lp;
+    }
+
+    private static android.widget.EditText findEdit(View v) {
+        if (v instanceof android.widget.EditText) return (android.widget.EditText) v;
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                android.widget.EditText e = findEdit(g.getChildAt(i));
+                if (e != null) return e;
+            }
+        }
+        return null;
+    }
+
+    /** OriginUI 输入框：无边框，底部一条细线，强调色光标。 */
+    private void styleInput(android.widget.EditText et) {
+        et.setTextColor(cTitle);
+        et.setHintTextColor(cSummary);
+        et.setHighlightColor(withAlpha(cAccent, 0x40));
+        et.setPadding(0, dp(10), 0, dp(10));
+        GradientDrawable line = new GradientDrawable();
+        line.setColor(dark ? 0x33FFFFFF : 0x26000000);
+        android.graphics.drawable.LayerDrawable bg = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{line});
+        bg.setLayerGravity(0, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL);
+        bg.setLayerHeight(0, Math.max(1, dp(1) / 2 * 2 / 2));
+        et.setBackground(bg);
+        try {
+            GradientDrawable cur = new GradientDrawable();
+            cur.setColor(cAccent);
+            cur.setSize(dp(2), 0);
+            et.setTextCursorDrawable(cur);
+        } catch (Throwable ignored) {
+        }
     }
 
     /** 优先用酷安 App 打开主页，没装酷安时用浏览器。 */
@@ -1745,7 +2214,7 @@ public class SettingsActivity extends Activity {
         String notes = rel.optString("body", "").trim();
         if (notes.length() > 1200) notes = notes.substring(0, 1200) + "…";
         String page = rel.optString("html_url", "https://github.com/" + REPO + "/releases/latest");
-        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this, dialogTheme())
+        DialogBuilder b = new DialogBuilder()
                 .setTitle("发现新版本 " + tag)
                 .setMessage("当前版本 " + cur + (notes.isEmpty() ? "" : "\n\n" + notes))
                 .setNegativeButton("取消", null)
@@ -1760,7 +2229,7 @@ public class SettingsActivity extends Activity {
 
     private void download(String url, long size, String tag, java.util.List<String> bases) {
         final boolean[] cancel = {false};
-        android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this, dialogTheme())
+        GlassDialog dlg = new DialogBuilder()
                 .setTitle("下载 " + tag)
                 .setMessage("连接中…")
                 .setCancelable(false)
@@ -1793,7 +2262,7 @@ public class SettingsActivity extends Activity {
         }, "fsx-download").start();
     }
 
-    private void fetchTo(String url, java.io.File f, long size, String host, android.app.AlertDialog dlg, boolean[] cancel)
+    private void fetchTo(String url, java.io.File f, long size, String host, GlassDialog dlg, boolean[] cancel)
             throws java.io.IOException {
         java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
         c.setInstanceFollowRedirects(true);
