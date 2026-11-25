@@ -13,9 +13,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -51,7 +51,7 @@ jobs:
           echo "name=$v" >> "$GITHUB_OUTPUT"
           cp build/FucSuperX.apk "build/FucSuperX-$v.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: FucSuperX-${{ steps.ver.outputs.name }}
           path: build/FucSuperX-*.apk
@@ -65,7 +65,7 @@ jobs:
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: build/FucSuperX-*.apk
           body_path: ${{ runner.temp }}/notes.md
