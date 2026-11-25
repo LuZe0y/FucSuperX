@@ -45,7 +45,8 @@ public class SettingsActivity extends Activity {
     private static final PathInterpolator EASE_UP = new PathInterpolator(0.33f, 0f, 0.67f, 1f);
     private static final PathInterpolator EASE_SWITCH = new PathInterpolator(0.2f, 0f, 0.1f, 1f);
 
-    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass", PAGE_NC = "nc";
+    static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass", PAGE_NC = "nc",
+            PAGE_COPY = "copy";
     private boolean dark, island, sysglass, nc;
     private int cBg, cCard, cTitle, cSummary, cHeading, cDivider, cAccent, cTrackOff, cRingOff, cPress, cChevron, cCircle, cIcon;
 
@@ -118,6 +119,23 @@ public class SettingsActivity extends Activity {
         maybeAutoCheck();
     }
 
+    /** 从其他页面返回（如在「抄作业」里切换了开关）时按最新配置重建。 */
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        if (built && Prop.remote() && !isFinishing()) rebuild();
+    }
+
+    private void rebuild() {
+        int y = scroll == null ? 0 : scroll.getScrollY();
+        build();
+        if (scroll != null) scroll.post(() -> scroll.scrollTo(0, y));
+    }
+
+    private boolean copyPage() {
+        return PAGE_COPY.equals(getIntent().getStringExtra(EXTRA_PAGE));
+    }
+
     @Override
     protected void onDestroy() {
         Prop.listen(null);
@@ -159,6 +177,7 @@ public class SettingsActivity extends Activity {
         else if (island) buildIsland();
         else if (sysglass) buildSysGlass();
         else if (nc) buildNc();
+        else if (copyPage()) buildCopy();
         else buildMain();
     }
 
@@ -172,6 +191,8 @@ public class SettingsActivity extends Activity {
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SYSGLASS)));
         c.link("通知中心", "顶部时间、日期大号居中", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_NC)));
+        c.link("抄作业", "一段分享码分享整套参数", () ->
+                startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_COPY)));
 
         heading("设置", true);
         c = card();
@@ -181,7 +202,8 @@ public class SettingsActivity extends Activity {
     }
 
     private void buildIsland() {
-        heading("总开关", false);
+        boolean cp = copyBanner("island");
+        heading("总开关", cp);
         Card c = card();
         c.toggle("调节原子岛", "关闭后原子岛完全恢复系统原版，切换时原子岛会自动重启", "persist.land.island_glass_on", "1");
 
@@ -209,7 +231,8 @@ public class SettingsActivity extends Activity {
 
     /** 系统液态玻璃：SystemUI 内除原子岛外的全部材质。全部为倍数，1.00 = 系统原值。 */
     private void buildSysGlass() {
-        heading("总开关", false);
+        boolean cp = copyBanner("sysglass");
+        heading("总开关", cp);
         Card c = card();
         c.toggle("调节系统液态玻璃", "关闭后完全使用系统原版参数", "persist.land.sysglass", "1");
         c.toggle("排除其他系统弹窗", "指纹验证弹窗、小窗 / 分屏菜单、原子工作台入口等不在通知栏 / 控制中心 / 锁屏里的材质保持系统原样",
@@ -243,7 +266,8 @@ public class SettingsActivity extends Activity {
 
     /** 通知中心：顶部时间 / 日期的大小与位置，控制中心不受影响。 */
     private void buildNc() {
-        heading("时间与日期", false);
+        boolean cp = copyBanner("nc");
+        heading("时间与日期", cp);
         Card c = card();
         c.toggle("大号居中", "日期在上、时间放大在下，均水平居中", "persist.land.nc_bigclock", "1");
         c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
@@ -279,8 +303,380 @@ public class SettingsActivity extends Activity {
         c.row("1. 启用模块", "打开 LSPosed 管理器 → 模块 → 打开 FucSuperX 的启用开关", null, null);
         c.row("2. 勾选作用域", "系统界面 com.android.systemui、com.vivo.systemuiplugin、设置 com.android.settings", null, null);
         c.row("3. 软重启", "在 LSPosed 管理器右上角菜单选择「软重启」（或直接重启手机），之后重新进入本页", null, null);
-        if (!island && !sysglass && !nc) buildAbout();
+        if (!island && !sysglass && !nc && !copyPage()) buildAbout();
         footer("已激活仍显示本页：确认 LSPosed 版本支持 libxposed API 101 及以上，且软重启后模块已加载。");
+    }
+
+    // ---------------- 抄作业：参数包导出 / 导入 / 备份 ----------------
+    private static final String K_PACK_NAME = "pack_name"; // 当前参数包名称（模块界面本地）
+
+    /** 该功能正在使用参数包时在页首提示；返回是否显示了提示（决定下一个分组标题的上边距）。 */
+    private boolean copyBanner(String sec) {
+        if (!Prop.using(sec)) return false;
+        heading("抄作业", false);
+        Card c = card();
+        c.link("正在使用参数包", "本页修改会存进参数包（总开关除外）", () ->
+                startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_COPY)));
+        return true;
+    }
+
+    private void buildCopy() {
+        heading("分享", false);
+        Card c = card();
+        c.link("导出参数包", "复制当前参数的分享码", this::exportPack);
+        c.link("导入参数包", "自动读取剪贴板，也可手动粘贴", this::importPack);
+
+        heading("使用参数包", true);
+        c = card();
+        int[] cnt = packCounts();
+        boolean loaded = cnt[0] + cnt[1] + cnt[2] > 0;
+        String name = ui().getString(K_PACK_NAME, "");
+        TextView st = valueText();
+        st.setText(!loaded ? "未导入" : name.isEmpty() ? "已导入" : name);
+        c.row("当前参数包", loaded ? Pack.summary(cnt) : "导入或加载备份后使用", st, null);
+        for (int i = 0; i < Pack.SECTIONS.length; i++) {
+            final String sec = Pack.SECTIONS[i];
+            c.toggle(Pack.NAMES[i], cnt[i] > 0 ? cnt[i] + " 项参数" : "参数包里没有这部分",
+                    () -> Prop.using(sec), on -> on ? Prop.setUsing(sec) : stopUsing(sec));
+        }
+        if (loaded) c.link("清除参数包", "删除参数包并关闭以上开关", this::clearPack);
+
+        heading("备份", true);
+        c = card();
+        c.link("备份当前参数", "存为备份，可命名", () ->
+                askName("备份当前参数", "", n -> saveBackup(n, currentValues())));
+        Backup def = defaultBackup();
+        TextView dv = valueText();
+        dv.setText(def == null ? "未设置" : def.name);
+        c.row("默认参数包", "关闭参数包时恢复为它", withChevron(dv), v -> chooseDefault());
+        for (Backup b : backups()) {
+            Pack.Parsed p = parsedOf(b);
+            TextView tag = null;
+            if (def != null && def.id.equals(b.id)) {
+                tag = valueText();
+                tag.setText("默认");
+            }
+            c.row(b.name, fmtTime(b.time, "MM-dd HH:mm") + " · " + (p == null ? "已损坏" : Pack.summary(p.counts)),
+                    withChevron(tag), v -> backupMenu(b));
+        }
+        footer("使用参数包时，功能页的修改存进参数包，不影响你自己的设置。关闭开关或清除参数包后，"
+                + "恢复为默认参数包（会覆盖你自己的设置），未设置则恢复为你自己的设置。备份仅存本机。");
+    }
+
+    private int[] packCounts() {
+        int[] n = new int[Pack.SECTIONS.length];
+        for (int i = 0; i < Pack.SECTIONS.length; i++)
+            for (String[] kd : Pack.KEYS[i]) if (!Prop.get("persist.land." + Pack.PK + kd[0], "").isEmpty()) n[i]++;
+        return n;
+    }
+
+    /** 当前实际生效的全部可分享参数。 */
+    private java.util.Map<String, String> currentValues() {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        for (String[][] sec : Pack.KEYS) for (String[] kd : sec) m.put(kd[0], Prop.get("persist.land." + kd[0], kd[1]).trim());
+        return m;
+    }
+
+    private void copyText(String s) {
+        android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("FucSuperX 参数包", s));
+    }
+
+    private void exportPack() {
+        try {
+            String code = Pack.encode(currentValues());
+            copyText(code);
+            toast(code.equals(Pack.MAGIC) ? "已复制分享码（全为默认参数）" : "已复制分享码");
+        } catch (Throwable t) {
+            Log.w(TAG, "export pack: " + t);
+            toast("导出失败：" + t.getMessage());
+        }
+    }
+
+    private String clipText() {
+        try {
+            android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
+            android.content.ClipData d = cm == null ? null : cm.getPrimaryClip();
+            if (d == null || d.getItemCount() == 0) return null;
+            CharSequence t = d.getItemAt(0).coerceToText(this);
+            return t == null ? null : t.toString();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void importPack() {
+        String clip = clipText();
+        if (Pack.looksLike(clip)) {
+            tryImport(clip);
+            return;
+        }
+        android.widget.EditText et = new android.widget.EditText(this);
+        et.setHint("粘贴「" + Pack.MAGIC + "」开头的分享码");
+        et.setTextSize(13);
+        et.setMinLines(2);
+        et.setMaxLines(6);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(et);
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("导入参数包")
+                .setMessage("剪贴板里没有分享码")
+                .setView(box)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("下一步", (d, w) -> tryImport(et.getText().toString()))
+                .show();
+    }
+
+    private void tryImport(String text) {
+        Pack.Parsed p;
+        try {
+            p = Pack.parse(text);
+        } catch (Throwable t) {
+            toast("无效的分享码：" + t.getMessage());
+            return;
+        }
+        StringBuilder msg = new StringBuilder();
+        msg.append(p.changed == 0 ? "全为默认参数" : "包含 " + p.changed + " 项改动，其余为默认值");
+        if (p.skipped > 0) msg.append("\n已忽略 ").append(p.skipped).append(" 项无法识别的参数");
+        msg.append("\n\n「导入并使用」会替换当前参数包，「存为备份」不影响当前效果。");
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("导入参数包")
+                .setMessage(msg)
+                .setNegativeButton("取消", null)
+                .setNeutralButton("存为备份", (d, w) -> askName("存为备份", "", n -> saveBackup(n, p.values)))
+                .setPositiveButton("导入并使用", (d, w) -> usePack(p, "导入的参数包"))
+                .show();
+    }
+
+    /** 把参数包载入为当前参数包，并打开包里含有的各分组的使用开关。 */
+    private void usePack(Pack.Parsed p, String name) {
+        if (!Prop.writePack(p.values, p.sections())) {
+            toast(WRITE_FAIL);
+            return;
+        }
+        ui().edit().putString(K_PACK_NAME, name).apply();
+        toast("已开始使用「" + name + "」");
+        rebuild();
+    }
+
+    /** 关闭某分组的参数包：设置了默认参数包（且包含这部分）时用它的参数覆盖自己的设置。 */
+    private boolean stopUsing(String sec) {
+        Backup def = defaultBackup();
+        Pack.Parsed p = parsedOf(def);
+        int i = java.util.Arrays.asList(Pack.SECTIONS).indexOf(sec);
+        boolean apply = p != null && i >= 0 && p.counts[i] > 0;
+        if (!Prop.stopUsing(sec, apply ? p.values : null)) return false;
+        if (apply) toast("已恢复为默认参数包「" + def.name + "」");
+        return true;
+    }
+
+    private void clearPack() {
+        Backup def = defaultBackup();
+        Pack.Parsed p = parsedOf(def);
+        String to = p != null ? "默认参数包「" + def.name + "」（会覆盖你自己的设置）" : "你自己的设置";
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("清除参数包")
+                .setMessage("恢复为" + to + "，备份不受影响。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清除", (d, w) -> {
+                    if (!Prop.clearPack(p == null ? null : p.values)) {
+                        toast(WRITE_FAIL);
+                    } else {
+                        ui().edit().remove(K_PACK_NAME).apply();
+                        toast("已清除参数包");
+                    }
+                    rebuild();
+                })
+                .show();
+    }
+
+    // ----- 备份（只存在模块界面本地，不需要 LSPosed 服务） -----
+
+    private static final class Backup {
+        String id, name, code;
+        long time;
+    }
+
+    /** 备份列表的存储键（分享码格式变过，旧开发版备份不再读取）。 */
+    private static final String BACKUPS = "list_v2";
+
+    private android.content.SharedPreferences packs() {
+        return getSharedPreferences("packs", MODE_PRIVATE);
+    }
+
+    /** 全部备份，最新的在前。 */
+    private java.util.List<Backup> backups() {
+        java.util.List<Backup> r = new java.util.ArrayList<>();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(packs().getString(BACKUPS, "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                org.json.JSONObject o = a.optJSONObject(i);
+                if (o == null) continue;
+                Backup b = new Backup();
+                b.id = o.optString("id");
+                b.name = o.optString("name");
+                b.code = o.optString("code");
+                b.time = o.optLong("time");
+                if (!b.id.isEmpty() && !b.code.isEmpty()) r.add(b);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "backups: " + t);
+        }
+        return r;
+    }
+
+    private boolean saveBackups(java.util.List<Backup> list) {
+        try {
+            org.json.JSONArray a = new org.json.JSONArray();
+            for (Backup b : list) {
+                a.put(new org.json.JSONObject().put("id", b.id).put("name", b.name).put("code", b.code).put("time", b.time));
+            }
+            return packs().edit().putString(BACKUPS, a.toString()).commit();
+        } catch (Throwable t) {
+            Log.w(TAG, "save backups: " + t);
+            return false;
+        }
+    }
+
+    private Backup defaultBackup() {
+        String id = packs().getString("default", "");
+        if (id.isEmpty()) return null;
+        for (Backup b : backups()) if (b.id.equals(id)) return b;
+        return null;
+    }
+
+    private static Pack.Parsed parsedOf(Backup b) {
+        if (b == null) return null;
+        try {
+            return Pack.parse(b.code);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void saveBackup(String name, java.util.Map<String, String> values) {
+        java.util.List<Backup> list = backups();
+        Backup b = new Backup();
+        b.time = System.currentTimeMillis();
+        b.id = Long.toString(b.time, 36);
+        for (Backup x : list) if (x.id.equals(b.id)) b.id += "x"; // 同一毫秒内连续备份
+        b.name = name;
+        b.code = Pack.encode(values);
+        list.add(0, b);
+        if (!saveBackups(list)) {
+            toast("备份失败");
+            return;
+        }
+        toast("已备份「" + name + "」");
+        rebuild();
+    }
+
+    /** 输入名称；留空时用当前时间命名。 */
+    private void askName(String title, String preset, java.util.function.Consumer<String> done) {
+        android.widget.EditText et = new android.widget.EditText(this);
+        et.setSingleLine(true);
+        et.setHint("留空则用当前时间命名");
+        et.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(24)});
+        et.setText(preset);
+        et.setSelection(et.getText().length());
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(et);
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle(title)
+                .setView(box)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", (d, w) -> {
+                    String n = et.getText().toString().trim().replaceAll("\\s+", " ");
+                    done.accept(n.isEmpty() ? fmtTime(System.currentTimeMillis(), "yyyy-MM-dd HH:mm:ss") : n);
+                })
+                .show();
+    }
+
+    private static String fmtTime(long t, String pattern) {
+        return new java.text.SimpleDateFormat(pattern, java.util.Locale.CHINA).format(new java.util.Date(t));
+    }
+
+    private void backupMenu(Backup b) {
+        Backup def = defaultBackup();
+        boolean isDef = def != null && def.id.equals(b.id);
+        String[] items = {"加载并使用", "复制分享码", isDef ? "取消默认参数包" : "设为默认参数包", "重命名", "删除"};
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle(b.name)
+                .setItems(items, (d, w) -> {
+                    switch (w) {
+                        case 0: {
+                            Pack.Parsed p = parsedOf(b);
+                            if (p == null) toast("备份已损坏");
+                            else usePack(p, b.name);
+                            break;
+                        }
+                        case 1:
+                            copyText(b.code);
+                            toast("已复制「" + b.name + "」的分享码");
+                            break;
+                        case 2:
+                            packs().edit().putString("default", isDef ? "" : b.id).commit();
+                            toast(isDef ? "已取消默认参数包" : "已设为默认参数包");
+                            rebuild();
+                            break;
+                        case 3:
+                            askName("重命名", b.name, n -> renameBackup(b.id, n));
+                            break;
+                        default:
+                            deleteBackup(b, isDef);
+                    }
+                })
+                .show();
+    }
+
+    private void renameBackup(String id, String name) {
+        java.util.List<Backup> list = backups();
+        for (Backup x : list) if (x.id.equals(id)) x.name = name;
+        if (!saveBackups(list)) toast("重命名失败");
+        rebuild();
+    }
+
+    private void deleteBackup(Backup b, boolean isDef) {
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("删除备份")
+                .setMessage("删除「" + b.name + "」？" + (isDef ? "删除后将不再有默认参数包。" : ""))
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (d, w) -> {
+                    java.util.List<Backup> list = backups();
+                    list.removeIf(x -> x.id.equals(b.id));
+                    saveBackups(list);
+                    if (isDef) packs().edit().remove("default").commit();
+                    toast("已删除");
+                    rebuild();
+                })
+                .show();
+    }
+
+    private void chooseDefault() {
+        java.util.List<Backup> list = backups();
+        if (list.isEmpty()) {
+            toast("还没有备份");
+            return;
+        }
+        Backup def = defaultBackup();
+        String[] items = new String[list.size() + 1];
+        items[0] = "不设置";
+        int sel = 0;
+        for (int i = 0; i < list.size(); i++) {
+            items[i + 1] = list.get(i).name;
+            if (def != null && def.id.equals(list.get(i).id)) sel = i + 1;
+        }
+        new android.app.AlertDialog.Builder(this, dialogTheme())
+                .setTitle("默认参数包")
+                .setSingleChoiceItems(items, sel, (d, w) -> {
+                    packs().edit().putString("default", w == 0 ? "" : list.get(w - 1).id).commit();
+                    d.dismiss();
+                    rebuild();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void footer(String s) {
@@ -326,7 +722,7 @@ public class SettingsActivity extends Activity {
         bl.leftMargin = dp(20);
         bar.addView(backBtn, bl);
 
-        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : nc ? "通知中心" : "FucSuperX", 18, cTitle, true);
+        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : nc ? "通知中心" : copyPage() ? "抄作业" : "FucSuperX", 18, cTitle, true);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
         tl.leftMargin = dp(68);
         tl.topMargin = dp(2); // 与系统 OriginUI 顶栏标题基线对齐
@@ -1159,7 +1555,7 @@ public class SettingsActivity extends Activity {
 
     /** 进入模块主页时自动检查一次更新：距上次自动检查不足 6 小时则跳过；静默进行，只在有新版本时弹窗。 */
     private void maybeAutoCheck() {
-        if (island || sysglass || nc) return;
+        if (island || sysglass || nc || copyPage()) return;
         android.content.SharedPreferences sp = ui();
         if (!sp.getBoolean(K_AUTO, true)) return;
         long now = System.currentTimeMillis(), last = sp.getLong(K_LAST, 0);
@@ -1512,6 +1908,7 @@ public class SettingsActivity extends Activity {
 
     /**
      * 配置读写：只走 LSPosed 远程偏好（框架同步给作用域进程，键名去掉 persist.land.）。
+     * 可分享的键在对应分组使用参数包时读写参数包（pk_），见 Pack。
      * 未连接 LSPosed 服务时读到默认值、写入失败，页面显示激活指引。
      */
     static final class Prop {
@@ -1552,11 +1949,99 @@ public class SettingsActivity extends Activity {
             return prefs != null;
         }
 
+        /** 该分组是否正在使用参数包。 */
+        static boolean using(String sec) {
+            return "1".equals(raw(PREFIX + "copy_" + sec, "0").trim());
+        }
+
+        /** 写入目标：分组正在使用参数包时写进参数包（pk_），否则写用户自己的设置。 */
+        private static String target(String key) {
+            String k = rk(key), sec = Pack.section(k);
+            return sec != null && using(sec) ? Pack.PK + k : k;
+        }
+
+        static boolean setUsing(String sec) {
+            return edit(e -> e.putString("copy_" + sec, "1"));
+        }
+
+        /** 替换参数包：清掉旧的 pk_*，写入新值，并打开 enable 里各分组的使用开关。 */
+        static boolean writePack(java.util.Map<String, String> vals, java.util.List<String> enable) {
+            return edit(e -> {
+                for (String[][] sec : Pack.KEYS) for (String[] kd : sec) e.remove(Pack.PK + kd[0]);
+                for (java.util.Map.Entry<String, String> x : vals.entrySet()) {
+                    if (Pack.section(x.getKey()) != null && Pack.validValue(x.getValue()))
+                        e.putString(Pack.PK + x.getKey(), x.getValue());
+                }
+                for (String s : enable) e.putString("copy_" + s, "1");
+            });
+        }
+
+        /** 停止使用某分组的参数包；base 不为空时用它覆盖该分组自己的设置（默认参数包）。 */
+        static boolean stopUsing(String sec, java.util.Map<String, String> base) {
+            return edit(e -> {
+                restore(e, sec, base);
+                e.putString("copy_" + sec, "0");
+            });
+        }
+
+        /** 清除参数包：正在使用的分组先按 base 覆盖自己的设置，再关闭开关、删掉参数包。 */
+        static boolean clearPack(java.util.Map<String, String> base) {
+            return edit(e -> {
+                for (String s : Pack.SECTIONS) {
+                    if (using(s)) restore(e, s, base);
+                    e.putString("copy_" + s, "0");
+                }
+                for (String[][] sec : Pack.KEYS) for (String[] kd : sec) e.remove(Pack.PK + kd[0]);
+                e.remove("pack_from");
+            });
+        }
+
+        private static void restore(android.content.SharedPreferences.Editor e, String sec,
+                                    java.util.Map<String, String> base) {
+            if (base == null) return;
+            for (int i = 0; i < Pack.SECTIONS.length; i++) {
+                if (!Pack.SECTIONS[i].equals(sec)) continue;
+                for (String[] kd : Pack.KEYS[i]) {
+                    String v = base.get(kd[0]);
+                    if (Pack.validValue(v)) e.putString(kd[0], v);
+                }
+            }
+        }
+
+        /** 一次提交多项修改。同步提交，页面随后重建能读到新值；不支持 commit 时退回 apply。 */
+        private static boolean edit(java.util.function.Consumer<android.content.SharedPreferences.Editor> fn) {
+            android.content.SharedPreferences p = prefs;
+            if (p == null) return false;
+            try {
+                android.content.SharedPreferences.Editor e = p.edit();
+                fn.accept(e);
+                try {
+                    return e.commit();
+                } catch (UnsupportedOperationException u) {
+                    e.apply();
+                    return true;
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "prefs edit: " + t);
+                return false;
+            }
+        }
+
         private static String rk(String key) {
             return key.startsWith(PREFIX) ? key.substring(PREFIX.length()) : key;
         }
 
+        /** 当前生效的值：分组正在使用参数包且包里有这个键时取参数包的值（与作用域进程 Conf.get 一致）。 */
         static String get(String key, String def) {
+            String k = rk(key), sec = Pack.section(k);
+            if (sec != null && using(sec)) {
+                String v = raw(PREFIX + Pack.PK + k, "");
+                if (!v.isEmpty()) return v;
+            }
+            return raw(key, def);
+        }
+
+        static String raw(String key, String def) {
             android.content.SharedPreferences p = prefs;
             if (p != null) {
                 try {
@@ -1573,7 +2058,7 @@ public class SettingsActivity extends Activity {
             android.content.SharedPreferences p = prefs;
             if (p != null) {
                 try {
-                    p.edit().putString(rk(key), value).apply();
+                    p.edit().putString(target(key), value).apply(); // 使用参数包时修改保存进参数包
                     return true;
                 } catch (Throwable t) {
                     Log.w(TAG, "prefs write: " + t);
