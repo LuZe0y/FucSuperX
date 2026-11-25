@@ -194,6 +194,15 @@ public class SettingsActivity extends Activity {
         c.link("抄作业", "一段分享码分享整套参数", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_COPY)));
 
+        heading("系统升级", true);
+        c = card();
+        c.toggle("禁止检查更新", "系统升级不再检查更新，一律显示已是最新版本，红点与更新提醒随之消失。需要升级时先关闭本开关",
+                () -> "1".equals(Prop.get(K_NO_AUTOCHECK, "0").trim()), on -> {
+                    if (!Prop.set(K_NO_AUTOCHECK, on ? "1" : "0")) return false;
+                    if (on) ensureUpdaterScope();
+                    return true;
+                });
+
         heading("设置", true);
         c = card();
         c.toggle("设置首页入口", "在设置顶部显示 FucSuperX", "persist.land.settings_entry", "1");
@@ -296,6 +305,31 @@ public class SettingsActivity extends Activity {
     }
 
     static final String WRITE_FAIL = "写入失败：未连接 LSPosed 服务";
+    private static final String K_NO_AUTOCHECK = "persist.land.updater_no_autocheck", UPDATER = "com.bbk.updater";
+
+    /** 「禁止检查更新」需要系统升级在作用域里：旧版本升级上来的用户没有勾选时向 LSPosed 申请。 */
+    private void ensureUpdaterScope() {
+        io.github.libxposed.service.XposedService s = Prop.service();
+        if (s == null) return;
+        try {
+            if (s.getScope().contains(UPDATER)) return;
+            s.requestScope(java.util.Collections.singletonList(UPDATER),
+                    new io.github.libxposed.service.XposedService.OnScopeEventListener() {
+                        @Override
+                        public void onScopeRequestApproved(java.util.List<String> approved) {
+                            runOnUiThread(() -> toast("已将系统升级加入作用域，重启手机后生效"));
+                        }
+
+                        @Override
+                        public void onScopeRequestFailed(String message) {
+                            runOnUiThread(() -> toast("请在 LSPosed 中为 FucSuperX 勾选系统升级（" + UPDATER + "）后重启手机"));
+                        }
+                    });
+        } catch (Throwable t) {
+            Log.w(TAG, "request scope: " + t);
+            toast("请在 LSPosed 中为 FucSuperX 勾选系统升级（" + UPDATER + "）后重启手机");
+        }
+    }
 
     /** 未连接 LSPosed 服务：配置只走 LSPosed 远程偏好，提示用户去框架里激活模块。 */
     private void buildInactive() {
@@ -303,7 +337,8 @@ public class SettingsActivity extends Activity {
         Card c = card();
         c.row("未连接 LSPosed 服务", "FucSuperX 通过 LSPosed 模块通道读写配置，需要先在 LSPosed 中激活模块", null, null);
         c.row("1. 启用模块", "打开 LSPosed 管理器 → 模块 → 打开 FucSuperX 的启用开关", null, null);
-        c.row("2. 勾选作用域", "系统界面 com.android.systemui、com.vivo.systemuiplugin、设置 com.android.settings", null, null);
+        c.row("2. 勾选作用域", "系统界面 com.android.systemui、com.vivo.systemuiplugin、设置 com.android.settings，"
+                + "使用「禁止检查更新」时再勾选系统升级 com.bbk.updater", null, null);
         c.row("3. 软重启", "在 LSPosed 管理器右上角菜单选择「软重启」（或直接重启手机），之后重新进入本页", null, null);
         if (!island && !sysglass && !nc && !copyPage()) buildAbout();
         footer("已激活仍显示本页：确认 LSPosed 版本支持 libxposed API 101 及以上，且软重启后模块已加载。");
@@ -2385,6 +2420,7 @@ public class SettingsActivity extends Activity {
     static final class Prop {
         private static final String PREFIX = "persist.land.";
         private static volatile android.content.SharedPreferences prefs;
+        private static volatile io.github.libxposed.service.XposedService service;
         private static volatile Runnable onBound;
         private static boolean listening;
 
@@ -2399,6 +2435,7 @@ public class SettingsActivity extends Activity {
                     new io.github.libxposed.service.XposedServiceHelper.OnServiceListener() {
                         @Override
                         public void onServiceBind(io.github.libxposed.service.XposedService s) {
+                            service = s;
                             try {
                                 prefs = s.getRemotePreferences("config");
                                 Log.i(TAG, "remote prefs bound, framework=" + s.getFrameworkName() + " api=" + s.getApiVersion());
@@ -2412,12 +2449,17 @@ public class SettingsActivity extends Activity {
                         @Override
                         public void onServiceDied(io.github.libxposed.service.XposedService s) {
                             prefs = null;
+                            service = null;
                         }
                     });
         }
 
         static boolean remote() {
             return prefs != null;
+        }
+
+        static io.github.libxposed.service.XposedService service() {
+            return service;
         }
 
         /** 该分组是否正在使用参数包。 */

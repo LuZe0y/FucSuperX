@@ -109,6 +109,13 @@ public class ModuleEntry extends XposedModule {
                 error("nc land install failed", t);
             }
         }
+        if (UpdaterHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
+            try {
+                new UpdaterHook(this).install(param.getClassLoader(), processName); // 系统升级：禁止自动检查更新
+            } catch (Throwable t) {
+                error("updater hook install failed", t);
+            }
+        }
         if (SettingsHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {
                 new SettingsHook(this).install(param.getClassLoader()); // 设置首页顶部 FucSuperX 入口
