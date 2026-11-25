@@ -111,7 +111,7 @@ public class ModuleEntry extends XposedModule {
         }
         if (UpdaterHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {
-                new UpdaterHook(this).install(param.getClassLoader(), processName); // 系统升级：禁止自动检查更新
+                new UpdaterHook(this).install(param.getClassLoader(), param.getApplicationInfo(), processName); // 系统升级：禁止检查更新
             } catch (Throwable t) {
                 error("updater hook install failed", t);
             }

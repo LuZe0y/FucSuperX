@@ -58,7 +58,7 @@ OriginOS 7 的 LSPosed 模块：原子岛玻璃材质、系统液态玻璃调节
 
 ## 从源码构建
 
-不使用 Gradle，`build.sh` 直接调用 javac → d8 → aapt2 → zipalign → apksigner。
+不使用 Gradle，`build.sh` 直接调用 R8（只裁剪 DexKit 依赖）→ javac → d8 → aapt2 → zipalign → apksigner。
 
 需要：JDK 17 及以上、Android SDK（`build-tools;35.0.0`、`platforms;android-35`）、Python 3。
 
@@ -116,8 +116,8 @@ src/        模块源码（Hook 入口、各功能、模块界面）
 stubs/      隐藏 API 的编译期桩，只参与编译，不打进 APK
 res/        资源
 xposed/     META-INF/xposed 配置（入口类、作用域、API 版本）
-libs/       libxposed API / service 库
-tools/      设备端调试脚本
+libs/       libxposed API / service 库、DexKit 及其依赖（kotlin-stdlib、flatbuffers）
+tools/      设备端调试脚本（lsp_db.sh 作用域、lsp_conf.sh 配置值）
 docs/       架构说明
 ```
 
@@ -127,6 +127,7 @@ docs/       架构说明
 
 - [LSPosed](https://github.com/LSPosed/LSPosed)
 - [libxposed](https://github.com/libxposed)
+- [DexKit](https://github.com/LuckyPray/DexKit)
 
 ## 免责声明
 

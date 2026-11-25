@@ -8,8 +8,23 @@ AJAR=$SDK/platforms/android-35/android.jar
 API=libs/libxposed-api-102.jar
 # 模块界面进程用的 LSPosed 服务库（远程偏好，无需 root），打进 dex
 SVC=libs/libxposed-service-102.jar:libs/libxposed-interface-102.jar
+# DexKit（按特征搜索混淆后的类 / 方法，用于系统升级），依赖 kotlin-stdlib、flatbuffers
+DEXKIT_AAR=libs/dexkit-2.3.0.aar
+DEXKIT_DEPS="libs/flatbuffers-java-23.5.26.jar libs/kotlin-stdlib-1.9.24.jar"
 OUT=build
-rm -rf $OUT && mkdir -p $OUT/classes $OUT/dex
+rm -rf $OUT && mkdir -p $OUT/classes $OUT/dex $OUT/dexkit
+
+echo '[0/6] dexkit'
+# 从 aar 取出 Java 类与 arm64 原生库；R8 裁剪掉 kotlin-stdlib / flatbuffers 中用不到的部分（模块代码不经过 R8）
+python3 - "$DEXKIT_AAR" "$OUT/dexkit" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    open(f"{sys.argv[2]}/classes.jar", "wb").write(z.read("classes.jar"))
+    open(f"{sys.argv[2]}/libdexkit.so", "wb").write(z.read("jni/arm64-v8a/libdexkit.so"))
+PY
+java -cp $BT/lib/d8.jar com.android.tools.r8.R8 --classfile --release --lib "$AJAR" \
+  --pg-conf libs/dexkit.pro --output $OUT/dexkit/shrunk.jar $OUT/dexkit/classes.jar $DEXKIT_DEPS
+DEXKIT=$OUT/dexkit/classes.jar:${DEXKIT_DEPS// /:}
 
 echo '[1/6] javac'
 # stubs/：隐藏 API 的编译期桩，只放进 classpath，不进 dex（运行时用 framework 里的真类）
@@ -17,11 +32,12 @@ mkdir -p $OUT/stubs
 javac -nowarn -Xlint:-options -source 17 -target 17 -encoding UTF-8 \
   -cp "$AJAR" -d $OUT/stubs $(find stubs -name '*.java')
 javac -nowarn -Xlint:-options -source 17 -target 17 -encoding UTF-8 \
-  -cp "$OUT/stubs:$AJAR:$API:$SVC" -d $OUT/classes $(find src -name '*.java')
+  -cp "$OUT/stubs:$AJAR:$API:$SVC:$DEXKIT" -d $OUT/classes $(find src -name '*.java')
 
 echo '[2/6] d8'
 $BT/d8 --release --min-api 31 --lib "$AJAR" --classpath "$API" \
-  --output $OUT/dex $(find $OUT/classes -name '*.class') ${SVC//:/ }
+  --output $OUT/dex $(find $OUT/classes -name '*.class') ${SVC//:/ } $OUT/dexkit/shrunk.jar
+ls $OUT/dex | grep -qx classes2.dex && { echo 'd8 产生了多个 dex，打包步骤只处理 classes.dex'; exit 1; }
 
 echo '[3/6] aapt2'
 $BT/aapt2 compile --dir res -o $OUT/res.zip
@@ -34,6 +50,8 @@ out = sys.argv[1]
 shutil.copy(f"{out}/base.apk", f"{out}/unsigned.apk")
 with zipfile.ZipFile(f"{out}/unsigned.apk", "a", zipfile.ZIP_DEFLATED) as z:
     z.write(f"{out}/dex/classes.dex", "classes.dex")
+    # 安装时解压到 nativeLibraryDir（清单 extractNativeLibs=true），作用域进程用 System.load 按绝对路径加载
+    z.write(f"{out}/dexkit/libdexkit.so", "lib/arm64-v8a/libdexkit.so")
     for n in ("module.prop", "java_init.list", "scope.list"):
         z.write(f"xposed/{n}", f"META-INF/xposed/{n}")
 PY
@@ -55,5 +73,5 @@ fi
 $BT/apksigner sign --ks "$KS" --ks-pass "pass:$KS_PASS" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASS" \
   --out $OUT/FucSuperX.apk $OUT/aligned.apk
 $BT/apksigner verify $OUT/FucSuperX.apk
-unzip -l $OUT/FucSuperX.apk | grep -E 'classes.dex|META-INF/xposed'
+unzip -l $OUT/FucSuperX.apk | grep -E 'classes.dex|META-INF/xposed|\.so$'
 echo "OK -> $(pwd)/$OUT/FucSuperX.apk"
