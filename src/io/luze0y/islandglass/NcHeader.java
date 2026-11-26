@@ -37,6 +37,8 @@ import io.github.libxposed.api.XposedModule;
  *   nc_clock_offset  时间 / 日期整体下移距离 0~200dp，默认 42（约为原顶部距离的一倍）
  *   nc_top_blur      1 开（默认）/ 0 关：上滑通知时顶部渐进模糊延长到时间下方（竖屏），见 NcTopBlur
  *   nc_top_blur_ext  模糊在时间数字下沿以下再延伸的距离 0~200dp，默认 40
+ *   nc_date_oneline  1 开（默认）/ 0 关：日期与星期显示在同一行
+ * 时间放大后超出可用宽度（如开启显秒）时自动缩小到正好一行，不会被换行。
  */
 final class NcHeader {
     private static final String TAG = "FucSuperX";
@@ -54,6 +56,10 @@ final class NcHeader {
     private volatile int wght = -1;
     private volatile boolean topBlur = true;
     private volatile float blurExtDp = 40f;
+    private volatile boolean dateOneLine = true;
+    private final Map<View, Integer> availW = new WeakHashMap<>();        // header -> 时间可用宽度
+    private final Map<TextView, Boolean> joined = new WeakHashMap<>();    // 日期 -> 已合并成一行
+    private Method mUpdateDate;
     private Field fTopBlur;
     private final Map<View, Integer> blurWant = new WeakHashMap<>(); // top_blur_view -> 延长后的高度
     private int idHour, idLockDate;
@@ -163,6 +169,21 @@ final class NcHeader {
             if (bs != null) for (View b : bs) if (b.getParent() == chain.getThisObject()) stretch(b);
             return r;
         });
+        // 日期文本由 VivoDateView.updateDate 按「M月d日\nEEEE」生成（日期变化、语言、时区等都会重设），每次生成后合并成一行
+        try {
+            Class<?> dv = cl.loadClass("com.vivo.systemuiplugin.systemui.statusbar.header.VivoDateView");
+            mUpdateDate = dv.getDeclaredMethod("updateDate");
+            mUpdateDate.setAccessible(true);
+            module.hook(mUpdateDate).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object r = chain.proceed();
+                TextView t = (TextView) chain.getThisObject();
+                ViewParent p = t.getParent();
+                if (p instanceof View && headerClass.isInstance(p)) joinDate((View) p, t);
+                return r;
+            });
+        } catch (Throwable t) {
+            Log.w(TAG, "nc header: date view hook failed: " + t);
+        }
         Log.i(TAG, "nc header hooks installed, on=" + on + " scale=" + scale);
     }
 
@@ -223,16 +244,6 @@ final class NcHeader {
     private void applyStyle(View h) {
         boolean act = active(h);
         TextView c = clock(h);
-        if (c != null) {
-            float now = c.getTextSize();
-            float[] st = sizes.get(c);
-            float base = st != null && Float.compare(now, st[1]) == 0 ? st[0] : now;
-            float want = act ? base * scale : base;
-            if (st == null) sizes.put(c, st = new float[2]);
-            st[0] = base;
-            st[1] = want;
-            if (Float.compare(want, now) != 0) c.setTextSize(TypedValue.COMPLEX_UNIT_PX, want);
-        }
         String f = font;
         if (c != null) {
             if (!act || "sys".equals(f)) applyFont(c, null, null);
@@ -240,6 +251,7 @@ final class NcHeader {
                 TextView lh = lockView(h, "hour", true);
                 if (lh != null) applyFont(c, lh.getTypeface(), lh.getFontVariationSettings());
             } else applyFont(c, fileFace(f), null);
+            sizeClock(h, c, act);
             compact(c, act && !"sys".equals(f));
             syncBar(h, c, act && !"sys".equals(f) && metrics.containsKey(c));
         }
@@ -251,11 +263,77 @@ final class NcHeader {
                 if (ld != null) applyFont(dt, ld.getTypeface(), ld.getFontVariationSettings());
             } else applyFont(dt, null, null);
         }
+        if (d instanceof TextView) joinDate(h, (TextView) d);
         if (d instanceof TextView) {
             TextView t = (TextView) d;
             if (!gravity.containsKey(t)) gravity.put(t, t.getGravity());
             int g = act ? Gravity.CENTER_HORIZONTAL : gravity.get(t);
             if (t.getGravity() != g) t.setGravity(g);
+        }
+    }
+
+    /**
+     * 时间字号 = 系统字号 × 倍数；超出可用宽度时（显秒、字号倍数大、宽字体）按最宽数字估算缩小到正好一行，
+     * 秒数跳动时宽度不会来回变。不适用时恢复系统字号。
+     */
+    private void sizeClock(View h, TextView c, boolean act) {
+        float now = c.getTextSize();
+        float[] st = sizes.get(c);
+        float base = st != null && Float.compare(now, st[1]) == 0 ? st[0] : now;
+        float want = act ? base * scale : base;
+        Integer aw;
+        synchronized (availW) {
+            aw = availW.get(h);
+        }
+        if (act && aw != null && aw > 0) {
+            float tw = templateWidth(c, want);
+            if (tw > aw) want = (float) Math.floor(want * aw / tw);
+        }
+        if (st == null) sizes.put(c, st = new float[2]);
+        st[0] = base;
+        st[1] = want;
+        if (Float.compare(want, now) != 0) c.setTextSize(TypedValue.COMPLEX_UNIT_PX, want);
+    }
+
+    /** 按 size 排版时文字的宽度，所有数字按最宽的那个计算（不随时间变化）。 */
+    private static float templateWidth(TextView c, float size) {
+        CharSequence cs = c.getText();
+        if (cs == null || cs.length() == 0) return 0;
+        android.text.TextPaint p = new android.text.TextPaint(c.getPaint());
+        p.setTextSize(size);
+        char wide = '0';
+        float ww = -1;
+        for (char ch = '0'; ch <= '9'; ch++) {
+            float w = p.measureText(String.valueOf(ch));
+            if (w > ww) {
+                ww = w;
+                wide = ch;
+            }
+        }
+        StringBuilder sb = new StringBuilder(cs.length());
+        for (int i = 0; i < cs.length(); i++) {
+            char ch = cs.charAt(i);
+            sb.append(ch >= '0' && ch <= '9' ? wide : ch);
+        }
+        return p.measureText(sb.toString()) + c.getPaddingLeft() + c.getPaddingRight() + 1;
+    }
+
+    /** 日期与星期合并成一行（换行改空格）；关闭或不适用时让系统重新生成原文本。 */
+    private void joinDate(View h, TextView t) {
+        boolean want = active(h) && dateOneLine && h.getResources().getConfiguration().orientation
+                == Configuration.ORIENTATION_PORTRAIT;
+        CharSequence cs = t.getText();
+        if (want) {
+            if (cs != null && cs.toString().indexOf('\n') >= 0) {
+                joined.put(t, Boolean.TRUE);
+                t.setText(cs.toString().replace('\n', ' '));
+            }
+        } else if (joined.remove(t) != null && mUpdateDate != null) {
+            try {
+                mUpdateDate.invoke(t);
+            } catch (Throwable e) {
+                Log.w(TAG, "nc header: restore date failed", e);
+            }
         }
     }
 
@@ -476,6 +554,11 @@ final class NcHeader {
         int avail = Math.max(0, w - h.getPaddingLeft() - h.getPaddingRight());
         int at = View.MeasureSpec.makeMeasureSpec(avail, View.MeasureSpec.AT_MOST);
         int un = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+        synchronized (availW) {
+            availW.put(h, avail);
+        }
+        sizeClock(h, (TextView) c, true); // 文字（如显秒）或宽度变了时重新适配，未变时不做任何事
+        compact((TextView) c, metrics.containsKey(c)); // 字号变了行高跟着变
         c.measure(at, un);
         d.measure(at, un);
         int[] g = glyphs((TextView) c);
@@ -655,6 +738,7 @@ final class NcHeader {
         }
         landSplit = !"0".equals(Conf.get("persist.land.nc_land_split", "1").trim());
         topBlur = !"0".equals(Conf.get("persist.land.nc_top_blur", "1").trim());
+        dateOneLine = !"0".equals(Conf.get("persist.land.nc_date_oneline", "1").trim());
         try {
             float v = Float.parseFloat(Conf.get("persist.land.nc_top_blur_ext", "40").trim());
             blurExtDp = Float.isNaN(v) ? 40f : Math.max(0f, Math.min(200f, v));

@@ -325,7 +325,8 @@ public class SettingsActivity extends Activity {
         heading("时间与日期", cp);
         Card c = card();
         c.toggle("大号居中", "日期在上、时间放大在下，均水平居中", "persist.land.nc_bigclock", "1");
-        c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
+        c.toggle("日期单行", "日期与星期显示在同一行", "persist.land.nc_date_oneline", "1");
+        c.slider("时间字号", "相对系统原字号的倍数，超出屏幕宽度时自动缩小", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
         c.slider("下移距离", "整体向下移动，单位 dp（竖屏）", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
         c.toggle("上滑顶部模糊", "上滑通知时渐进模糊延长到时间下方，通知不再与时间重叠", "persist.land.nc_top_blur", "1");
         c.slider("模糊延伸", "模糊在时间下方再延伸的距离，单位 dp", "persist.land.nc_top_blur_ext", "40", 0f, 200f, 1f, false, 0);
