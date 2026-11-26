@@ -329,6 +329,7 @@ public class SettingsActivity extends Activity {
         c.slider("下移距离", "整体向下移动，单位 dp（竖屏）", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
         c.toggle("上滑顶部模糊", "上滑通知时渐进模糊延长到时间下方，通知不再与时间重叠", "persist.land.nc_top_blur", "1");
         c.slider("模糊延伸", "模糊在时间下方再延伸的距离，单位 dp", "persist.land.nc_top_blur_ext", "40", 0f, 200f, 1f, false, 0);
+        c.slider("模糊渐入", "上滑这段距离内模糊逐渐出现，单位 dp，0 为立即出现（系统原版）", "persist.land.nc_top_blur_fade", "60", 0f, 200f, 1f, false, 0);
 
         heading("字体", true);
         c = card();

@@ -20,6 +20,9 @@ import io.github.libxposed.api.XposedModule;
  * 时间下半截不在这段模糊里，上滑的通知就和时间叠在一起。
  * 插件一侧（NcHeader）把 top_blur_view 拉长到时间下沿以下，并通过 setBottom 报告它的下沿；
  * 这里让通知列表的材质渐变与划走通知时的模糊刷新范围跟着延长。bottom ≤ 0 时完全按原版。
+ * 渐入：原版滚动量一离开 0 就把模糊整块显示出来（setOwnScrollY 里切 VISIBLE / GONE），这里按滚动量
+ * 把模糊视图的透明度从 0 拉到系统值（面板动画 setStatckAnimAlpha 写入的值），上滑 nc_top_blur_fade（dp）
+ * 后完全出现，下滑回顶部时同样逐渐消失；为 0 时按原版立即出现。
  */
 final class NcTopBlur {
     private static final String TAG = "FucSuperX";
@@ -31,6 +34,13 @@ final class NcTopBlur {
     private static Method mRefresh, mGrad;
     private static Field fOn;
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final String CTRL = "com.vivo.blur.VivoHeaderTopBlurViewController";
+    private volatile float fadeDp = 60f;
+    private float baseAlpha = 1f; // 系统给模糊视图的透明度（面板展开 / 收起动画）
+    private Object ctrl;
+    private Field fBlurView;
+    private Method mDepGet, mScrollY;
+    private Class<?> ctrlClass;
 
     private final XposedModule module;
 
@@ -77,7 +87,93 @@ final class NcTopBlur {
                 return y < h;
             });
         }
-        Log.i(TAG, "nc top blur hooks installed, region=" + (region != null));
+        installFade(cl, nssl);
+        Log.i(TAG, "nc top blur hooks installed, region=" + (region != null) + " fade=" + fadeDp);
+    }
+
+    private void installFade(ClassLoader cl, Class<?> nssl) throws Throwable {
+        load();
+        Conf.subscribe(k -> {
+            if (k != null && k.startsWith("nc_top_blur")) {
+                load();
+                MAIN.post(this::applyFade);
+            }
+        });
+        ctrlClass = cl.loadClass(CTRL);
+        fBlurView = ctrlClass.getDeclaredField("mBlurView");
+        fBlurView.setAccessible(true);
+        Class<?> dep = cl.loadClass("com.android.systemui.Dependency");
+        Field fs = dep.getDeclaredField("sDependency");
+        fs.setAccessible(true);
+        Method gi = dep.getDeclaredMethod("getDependencyInner", Object.class);
+        gi.setAccessible(true);
+        mDepGet = gi;
+        ctrl = new Object[]{fs}; // 延迟取实例：安装时 Dependency 可能还没初始化
+        mScrollY = nssl.getMethod("getOwnScrollY");
+        // 滚动量变化：系统在这里切换模糊视图的可见性，之后按滚动量设透明度
+        Method so = nssl.getDeclaredMethod("setOwnScrollY", int.class, boolean.class);
+        module.hook(so).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Object r = chain.proceed();
+            View v = (View) chain.getThisObject();
+            if (stack.get() != v) stack = new WeakReference<>(v);
+            applyFade();
+            return r;
+        });
+        // 面板展开 / 收起动画会直接给模糊视图设透明度：记下系统值，再乘上渐入进度
+        try {
+            Class<?> anim = cl.loadClass("com.vivo.systemui.animation.VivoStackScrollAnimationController");
+            Method sa = anim.getDeclaredMethod("setStatckAnimAlpha", float.class);
+            module.hook(sa).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object r = chain.proceed();
+                baseAlpha = (Float) chain.getArg(0);
+                applyFade();
+                return r;
+            });
+        } catch (Throwable t) {
+            Log.w(TAG, "nc top blur: stack anim alpha hook failed: " + t);
+        }
+    }
+
+    private View blurView() {
+        try {
+            Object c = ctrl;
+            if (c instanceof Object[]) {
+                Object d = ((Field) ((Object[]) c)[0]).get(null);
+                if (d == null) return null;
+                c = mDepGet.invoke(d, ctrlClass);
+                if (c == null) return null;
+                ctrl = c;
+            }
+            Object v = fBlurView.get(c);
+            return v instanceof View ? (View) v : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** 透明度 = 系统值 × 渐入进度（滚动量 / 渐入距离）。只在模糊可见时设置，GONE 时交给系统。 */
+    private void applyFade() {
+        View s = stack.get(), b = blurView();
+        if (s == null || b == null || b.getVisibility() != View.VISIBLE) return;
+        float p = 1f;
+        float ramp = fadeDp * s.getResources().getDisplayMetrics().density;
+        if (ramp > 0) {
+            try {
+                p = Math.max(0f, Math.min(1f, (Integer) mScrollY.invoke(s) / ramp));
+            } catch (Throwable ignored) {
+            }
+        }
+        float want = baseAlpha * p;
+        if (Float.compare(b.getAlpha(), want) != 0) b.setAlpha(want);
+    }
+
+    private void load() {
+        try {
+            float v = Float.parseFloat(Conf.get("persist.land.nc_top_blur_fade", "60").trim());
+            fadeDp = Float.isNaN(v) ? 60f : Math.max(0f, Math.min(200f, v));
+        } catch (Throwable t) {
+            fadeDp = 60f;
+        }
     }
 
     /** 插件一侧报告 top_blur_view 下沿；变化时让通知列表重设材质渐变。 */
