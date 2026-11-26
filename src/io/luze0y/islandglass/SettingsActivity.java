@@ -206,8 +206,54 @@ public class SettingsActivity extends Activity {
         heading("设置", true);
         c = card();
         c.toggle("设置首页入口", "在设置顶部显示 FucSuperX", "persist.land.settings_entry", "1");
+        c.link("重启系统界面", "重启 SystemUI，模块更新后需重启一次才会加载新代码（需要 root）", this::confirmRestartSysui);
         buildAbout();
-        footer("修改即时生效，无需 root。");
+        footer("修改即时生效，无需 root（重启系统界面除外）。");
+    }
+
+    /** 重启系统界面前确认：状态栏、通知中心等会短暂消失。 */
+    private void confirmRestartSysui() {
+        new DialogBuilder()
+                .setTitle("重启系统界面")
+                .setMessage("状态栏、通知中心、原子岛等会短暂消失后自动恢复，正在进行的通话和应用不受影响。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("重启", (d, w) -> restartSysui())
+                .show();
+    }
+
+    /**
+     * 经 su 结束 SystemUI 进程，由系统自动拉起。没有 su、被拒绝或超时未授权时弹窗提醒授权。
+     * 返回码：0 成功；14 找不到 SystemUI 进程；其他（含 su 拒绝、非 root 身份）按未授权处理。
+     */
+    private void restartSysui() {
+        new Thread(() -> {
+            int r;
+            Process p = null;
+            try {
+                p = Runtime.getRuntime().exec(new String[]{"su", "-c",
+                        "[ \"$(id -u)\" = 0 ] || exit 13; P=$(pidof com.android.systemui) || exit 14; kill -9 $P"});
+                r = p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS) ? p.exitValue() : -1; // 等用户在 root 管理器里点授权
+            } catch (Throwable t) {
+                r = -2; // 没有 su
+            } finally {
+                if (p != null) p.destroy();
+            }
+            final int code = r;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || code == 0) return; // 成功时系统界面正在重启，toast 显示不出来
+                if (code == 14) toast("未找到系统界面进程");
+                else rootDenied();
+            });
+        }, "restart-sysui").start();
+    }
+
+    private void rootDenied() {
+        new DialogBuilder()
+                .setTitle("需要 root 权限")
+                .setMessage("重启系统界面需要 root。请在 KernelSU 等 root 管理器中为 FucSuperX 授予超级用户权限，然后重试。")
+                .setNegativeButton("知道了", null)
+                .setPositiveButton("重试", (d, w) -> restartSysui())
+                .show();
     }
 
     private void buildIsland() {
@@ -281,6 +327,8 @@ public class SettingsActivity extends Activity {
         c.toggle("大号居中", "日期在上、时间放大在下，均水平居中", "persist.land.nc_bigclock", "1");
         c.slider("时间字号", "相对系统原字号的倍数", "persist.land.nc_clock_scale", "2", 1f, 3f, 0.05f, false, 2);
         c.slider("下移距离", "整体向下移动，单位 dp（竖屏）", "persist.land.nc_clock_offset", "42", 0f, 200f, 1f, false, 0);
+        c.toggle("上滑顶部模糊", "上滑通知时渐进模糊延长到时间下方，通知不再与时间重叠", "persist.land.nc_top_blur", "1");
+        c.slider("模糊延伸", "模糊在时间下方再延伸的距离，单位 dp", "persist.land.nc_top_blur_ext", "40", 0f, 200f, 1f, false, 0);
 
         heading("字体", true);
         c = card();

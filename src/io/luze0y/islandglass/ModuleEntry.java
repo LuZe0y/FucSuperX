@@ -108,6 +108,11 @@ public class ModuleEntry extends XposedModule {
             } catch (Throwable t) {
                 error("nc land install failed", t);
             }
+            try {
+                new NcTopBlur(this).install(param.getClassLoader()); // 通知中心上滑顶部模糊延长到大号时间下方
+            } catch (Throwable t) {
+                error("nc top blur install failed", t);
+            }
         }
         if (UpdaterHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {

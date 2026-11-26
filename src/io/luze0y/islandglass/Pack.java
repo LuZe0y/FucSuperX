@@ -45,7 +45,8 @@ final class Pack {
             {
                     {"nc_bigclock", "1"}, {"nc_clock_scale", "2"}, {"nc_clock_offset", "42"},
                     {"nc_clock_font", "sys"}, {"nc_clock_wght", "-1"}, {"nc_land_split", "1"},
-                    {"nc_land_side", "left"},
+                    {"nc_land_side", "left"}, {"nc_top_blur", "1"},
+                    {"nc_top_blur_ext", "40"},
             },
     };
 

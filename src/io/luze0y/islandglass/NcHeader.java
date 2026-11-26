@@ -35,6 +35,8 @@ import io.github.libxposed.api.XposedModule;
  *   nc_clock_font    sys=系统默认 | lock=跟随锁屏（时间、日期都取锁屏当前字体）| /system/fonts 下的字体文件名
  *   nc_clock_wght    自选字体的字重 100~900，-1 = 字体默认
  *   nc_clock_offset  时间 / 日期整体下移距离 0~200dp，默认 42（约为原顶部距离的一倍）
+ *   nc_top_blur      1 开（默认）/ 0 关：上滑通知时顶部渐进模糊延长到时间下方（竖屏），见 NcTopBlur
+ *   nc_top_blur_ext  模糊在时间数字下沿以下再延伸的距离 0~200dp，默认 40
  */
 final class NcHeader {
     private static final String TAG = "FucSuperX";
@@ -50,6 +52,10 @@ final class NcHeader {
     private volatile boolean landSplit = true;
     private volatile String font = "sys";
     private volatile int wght = -1;
+    private volatile boolean topBlur = true;
+    private volatile float blurExtDp = 40f;
+    private Field fTopBlur;
+    private final Map<View, Integer> blurWant = new WeakHashMap<>(); // top_blur_view -> 延长后的高度
     private int idHour, idLockDate;
     private boolean lockMissLogged;
     private final Map<TextView, Object[]> faces = new WeakHashMap<>(); // {系统字体, 系统可变轴, 上次写入字体, 上次写入轴}
@@ -142,7 +148,19 @@ final class NcHeader {
             if (active(h)) {
                 relayout(h);
                 if ("lock".equals(font)) h.post(() -> applyStyle(h)); // 锁屏换字体后跟上（无变化时不做任何事）
+            } else topBlur(h, null, null);
+            return r;
+        });
+        // top_blur_view 在 RelativeLayout 里（第一个子视图，先于顶栏布局）；父级单独重新布局时会按测量高度复位
+        Method rl = android.widget.RelativeLayout.class.getDeclaredMethod("onLayout",
+                boolean.class, int.class, int.class, int.class, int.class);
+        module.hook(rl).setExceptionMode(ExceptionMode.PROTECTIVE).intercept(chain -> {
+            Object r = chain.proceed();
+            List<View> bs = null;
+            synchronized (blurWant) {
+                if (!blurWant.isEmpty()) bs = new ArrayList<>(blurWant.keySet());
             }
+            if (bs != null) for (View b : bs) if (b.getParent() == chain.getThisObject()) stretch(b);
             return r;
         });
         Log.i(TAG, "nc header hooks installed, on=" + on + " scale=" + scale);
@@ -500,8 +518,69 @@ final class NcHeader {
             }
             ic.layout(il, it, il + iw, it + ih);
         }
+        topBlur(h, c, g);
         h.setPivotX(cx + cw / 2f); // 系统展开动画以时间为中心缩放
         h.setPivotY(g == null ? cy + ch / 2f : cy + (g[0] + g[1]) / 2f);
+    }
+
+    /**
+     * 上滑通知时系统在顶栏显示一段渐进模糊（top_blur_view，固定 120 / 160dp），大号时间的下半截在模糊外，
+     * 通知滑上去会和时间叠在一起。竖屏大号居中时把它拉长到时间数字下沿再往下 nc_top_blur_ext（默认 40dp；渐进模糊越往下越弱，
+     * 留一段让时间下方也足够模糊），并告诉 SystemUI 一侧（NcTopBlur）让通知列表的材质渐变跟着延长。
+     * c 为 null（不适用）或关闭时恢复系统高度。
+     */
+    private void topBlur(View h, View c, int[] g) {
+        View b = topBlurView(h);
+        if (b == null) return;
+        // 系统高度取 LayoutParams（updatePadding 按资源写入 120 / 160dp）：模糊视图平时是 GONE，
+        // 不参与测量，测量高度为 0；重启系统界面后第一次上滑前从没测量过，按测量高度判定会不延长。
+        // 不改 LayoutParams：测量高度保持系统值，顶栏容器高度与通知位置都不变
+        android.view.ViewGroup.LayoutParams lp = b.getLayoutParams();
+        int sys = lp != null && lp.height > 0 ? lp.height : b.getMeasuredHeight();
+        int want = sys;
+        boolean portrait = h.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+        if (c != null && topBlur && portrait && sys > 0) {
+            int vis = g != null ? g[1] : c.getMeasuredHeight();
+            int bottom = NcTopBlur.rootY(c) + vis + Math.round(blurExtDp * h.getResources().getDisplayMetrics().density);
+            want = Math.max(sys, bottom - NcTopBlur.rootY(b));
+        }
+        synchronized (blurWant) {
+            if (want > sys) blurWant.put(b, want);
+            else blurWant.remove(b);
+        }
+        NcTopBlur.setBottom(want > sys ? NcTopBlur.rootY(b) + want : -1);
+        stretch(b);
+    }
+
+    /** 只改布局高度（向下延长，父级不裁剪子视图）；父级重新布局后由 RelativeLayout.onLayout 的 Hook 再拉长。 */
+    private void stretch(View b) {
+        Integer w;
+        synchronized (blurWant) {
+            w = blurWant.get(b);
+        }
+        int want = w != null ? w : b.getMeasuredHeight();
+        if (b.getVisibility() == View.GONE) return; // GONE 时父级不布局它；变为可见时父级重新布局，由 RelativeLayout.onLayout 的 Hook 拉长
+        if (want > 0 && b.getHeight() != want) b.layout(b.getLeft(), b.getTop(), b.getRight(), b.getTop() + want);
+    }
+
+    /** 通知中心顶栏容器里的渐进模糊视图；控制中心的顶栏没有这个容器，返回 null。 */
+    private View topBlurView(View h) {
+        ViewParent p = h.getParent();
+        for (int i = 0; i < 6 && p != null; i++, p = p.getParent()) {
+            if (!CONTAINER.equals(p.getClass().getName())) continue;
+            try {
+                if (fTopBlur == null) {
+                    Field f = p.getClass().getDeclaredField("mTopBlurView");
+                    f.setAccessible(true);
+                    fTopBlur = f;
+                }
+                Object v = fTopBlur.get(p);
+                return v instanceof View ? (View) v : null;
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static int firstVisibleLeft(View v) {
@@ -575,6 +654,13 @@ final class NcHeader {
             offsetDp = 42f;
         }
         landSplit = !"0".equals(Conf.get("persist.land.nc_land_split", "1").trim());
+        topBlur = !"0".equals(Conf.get("persist.land.nc_top_blur", "1").trim());
+        try {
+            float v = Float.parseFloat(Conf.get("persist.land.nc_top_blur_ext", "40").trim());
+            blurExtDp = Float.isNaN(v) ? 40f : Math.max(0f, Math.min(200f, v));
+        } catch (Throwable t) {
+            blurExtDp = 40f;
+        }
         font = Conf.get("persist.land.nc_clock_font", "sys").trim();
         try {
             wght = Math.round(Float.parseFloat(Conf.get("persist.land.nc_clock_wght", "-1").trim()));
