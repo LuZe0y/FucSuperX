@@ -56,6 +56,7 @@ final class Pack {
                     {"sb_capsule_refr_r", "24"}, {"sb_capsule_light", "0.5"}, {"sb_capsule_light_w", "2"},
                     {"sb_capsule_clock_hide", "0"}, {"sb_capsule_speed", "1"}, {"sb_capsule_temp", "1"},
                     {"sb_capsule_color", "0"}, {"sb_capsule_text", "1"}, {"sb_capsule_bg", "0"},
+                    {"sb_capsule_style", "1"},
             },
     };
 

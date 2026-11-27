@@ -1,0 +1,352 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1960" height="1320" viewBox="0 0 1960 1320">
+<defs><linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7C97CF"/><stop offset="1" stop-color="#4E6CAB"/></linearGradient></defs>
+<rect id="page" width="1960" height="1320" fill="#F4F4F7"/>
+<text x="60" y="78" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="40" font-weight="700" fill="#1C1C20" fill-opacity="1" text-anchor="start">状态栏圆环 · 第二款样式 设计草图（t4）</text>
+<text x="60" y="118" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="22" font-weight="500" fill="#1C1C20" fill-opacity="0.6" text-anchor="start">三层圆环：电量环 / 卡 1 信号环 / 卡 2 信号环 · 主 Wi-Fi 居中偏右 · 副 Wi-Fi 压在右上开口 · 顶部电量数字（按 t3 手改结果整理）</text>
+<g id="layer-construction" inkscape:groupmode="layer" inkscape:label="结构图">
+<rect x="60" y="160" width="740" height="760" rx="36" fill="url(#wall)"/>
+<g id="construction-ring" transform="translate(430.0 550.0) scale(1.45) translate(-200 -200)">
+<g id="main-battery">
+<path id="main-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="main-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 51.99,181.83" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="main-number">
+<text id="main-number-text" x="128.12" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">80</text>
+<path id="main-bolt-1" d="M256.43,17.01 L233.27,56.30 L249.12,56.30 L245.87,84.75 L269.84,44.11 L253.99,44.11 Z" fill="#FFFFFF"/>
+</g>
+<g id="main-center">
+<path id="main-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="main-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="main-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<g id="main-wifi2">
+<path id="main-wifi2-1" d="M312.00,118.40 L300.46,106.86 A16.32,16.32 0 0 1 323.54,106.86 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="main-wifi2-2" d="M292.65,99.05 A27.36,27.36 0 0 1 331.35,99.05" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="8.64" stroke-linecap="round"/>
+<path id="main-wifi2-3" d="M281.11,87.51 A43.68,43.68 0 0 1 342.89,87.51" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="8.64" stroke-linecap="round"/>
+</g>
+<g id="main-sim1-ring">
+<path id="main-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="main-sim2-ring">
+<path id="main-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="main-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g></g>
+<g id="guides" inkscape:groupmode="layer" inkscape:label="辅助线（可隐藏）" fill="none" stroke="#FFE066" stroke-width="2" stroke-dasharray="8 8">
+<circle cx="430.0" cy="550.0" r="216.2"/>
+<circle cx="430.0" cy="550.0" r="176.0"/>
+<circle cx="430.0" cy="550.0" r="138.1"/>
+<line x1="430.0" y1="550.0" x2="669.3" y2="614.1" stroke-opacity="0.7"/>
+<line x1="430.0" y1="550.0" x2="455.9" y2="796.4" stroke-opacity="0.7"/>
+<line x1="430.0" y1="550.0" x2="237.4" y2="394.1" stroke-opacity="0.7"/>
+<line x1="430.0" y1="550.0" x2="270.7" y2="360.2" stroke-opacity="0.7"/>
+<circle cx="500.5" cy="537.9" r="126.6" stroke-opacity="0.5"/>
+<circle cx="592.4" cy="396.9" r="43.2" stroke-opacity="0.5"/>
+</g>
+<g id="construction-notes">
+<text x="84" y="204" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFE066" fill-opacity="1" text-anchor="start">① 第一层电量环：15° 起顺时针经底部到 230°，从右端开始填充</text>
+<text x="84" y="234" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFE066" fill-opacity="1" text-anchor="start">② 顶部电量数字居中，充电时右侧加闪电（快充双闪电）</text>
+<text x="84" y="840" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFE066" fill-opacity="1" text-anchor="start">③ 第二层卡 1、第三层卡 2：84°~219°，每环 4 段，自下而上 1→4 格</text>
+<text x="84" y="870" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFE066" fill-opacity="1" text-anchor="start">④ 主 Wi-Fi 右端伸进开口；副 Wi-Fi 小图标压在开口处（双 WLAN 时）</text>
+</g>
+<g id="layer-states" inkscape:groupmode="layer" inkscape:label="状态示例">
+<g id="state-a">
+<rect x="840" y="160" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1010.0 330) scale(0.82) translate(-200 -200)">
+<g id="a-battery">
+<path id="a-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="a-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 51.99,181.83" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="a-number">
+<text id="a-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">80</text>
+</g>
+<g id="a-center">
+<path id="a-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="a-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="a-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<g id="a-wifi2">
+<path id="a-wifi2-1" d="M312.00,118.40 L300.46,106.86 A16.32,16.32 0 0 1 323.54,106.86 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="a-wifi2-2" d="M292.65,99.05 A27.36,27.36 0 0 1 331.35,99.05" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="8.64" stroke-linecap="round"/>
+<path id="a-wifi2-3" d="M281.11,87.51 A43.68,43.68 0 0 1 342.89,87.51" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="8.64" stroke-linecap="round"/>
+</g>
+<g id="a-sim1-ring">
+<path id="a-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="a-sim2-ring">
+<path id="a-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="a-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="1010.0" y="510" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">双 Wi-Fi · 双卡 · 80%</text>
+</g>
+<g id="state-b">
+<rect x="1200" y="160" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1370.0 330) scale(0.82) translate(-200 -200)">
+<g id="b-battery">
+<path id="b-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="b-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 139.59,336.33" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="b-number">
+<text id="b-number-text" x="116.95" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">46</text>
+<path id="b-bolt-1" d="M245.26,17.01 L222.09,56.30 L237.94,56.30 L234.69,84.75 L258.67,44.11 L242.82,44.11 Z" fill="#FFFFFF"/>
+<path id="b-bolt-2" d="M267.61,17.01 L244.44,56.30 L260.29,56.30 L257.04,84.75 L281.02,44.11 L265.17,44.11 Z" fill="#FFFFFF"/>
+</g>
+<g id="b-center">
+<path id="b-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="b-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="b-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<g id="b-sim1-ring">
+<path id="b-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="b-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="b-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="b-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="1370.0" y="510" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">快充中 · Wi-Fi 两格 · 单卡</text>
+</g>
+<g id="state-c">
+<rect x="1560" y="160" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1730.0 330) scale(0.82) translate(-200 -200)">
+<g id="c-battery">
+<path id="c-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="c-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 73.13,278.36" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="c-number">
+<text id="c-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">62</text>
+</g>
+<g id="c-center">
+<text id="c-type" x="240.32" y="241.07" text-anchor="middle" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="137.20" fill="#FFFFFF" transform="translate(240.32 0) scale(0.920 1) translate(-240.32 0)">5G</text>
+</g>
+<g id="c-sim1-ring">
+<path id="c-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="c-sim2-ring">
+<path id="c-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="c-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="1730.0" y="510" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">移动数据 5G · 双卡</text>
+</g>
+<g id="state-d">
+<rect x="840" y="560" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1010.0 730) scale(0.82) translate(-200 -200)">
+<g id="d-battery">
+<path id="d-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="d-battery-level" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="d-number">
+<text id="d-number-text" x="129.44" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="141.12" lengthAdjust="spacingAndGlyphs">100</text>
+</g>
+<g id="d-center">
+<path id="d-airplane" d="M209.28,112.96 L221.26,123.71 L221.26,169.79 L291.46,205.12 L291.46,222.02 L221.26,200.51 L221.26,235.84 L245.23,251.20 L245.23,263.49 L209.28,254.27 L173.33,263.49 L173.33,251.20 L197.30,235.84 L197.30,200.51 L127.10,222.02 L127.10,205.12 L197.30,169.79 L197.30,123.71 Z" fill="#FFFFFF"/>
+</g>
+</g>
+<text x="1010.0" y="910" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">飞行模式（未连 Wi-Fi）</text>
+</g>
+<g id="state-e">
+<rect x="1200" y="560" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1370.0 730) scale(0.82) translate(-200 -200)">
+<g id="e-battery">
+<path id="e-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="e-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 199.35,349.12" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="e-number">
+<text id="e-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">35</text>
+</g>
+<g id="e-center">
+<path id="e-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="e-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="e-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<path id="e-airplane-small" d="M147.20,216.32 L152.58,221.70 L152.58,244.74 L184.06,262.40 L184.06,270.85 L152.58,260.10 L152.58,277.76 L163.33,285.44 L163.33,291.58 L147.20,286.98 L131.07,291.58 L131.07,285.44 L141.82,277.76 L141.82,260.10 L110.34,270.85 L110.34,262.40 L141.82,244.74 L141.82,221.70 Z" fill="#FFFFFF"/>
+</g>
+<text x="1370.0" y="910" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">飞行模式 + Wi-Fi</text>
+</g>
+<g id="state-f">
+<rect x="1560" y="560" width="340" height="380" rx="28" fill="url(#wall)"/>
+<g transform="translate(1730.0 730) scale(0.82) translate(-200 -200)">
+<g id="f-battery">
+<path id="f-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="f-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 301.22,309.50" fill="none" stroke="#FF3B30" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="f-number">
+<text id="f-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">15</text>
+</g>
+<g id="f-center">
+</g>
+<g id="f-sim1-ring">
+<path id="f-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="f-sim2-ring">
+<path id="f-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="f-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="1730.0" y="910" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">低电量 · 无网络（开启电量着色）</text>
+</g>
+</g>
+<g id="layer-preview" inkscape:groupmode="layer" inkscape:label="实际大小预览">
+<text x="60" y="965" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700" fill="#1C1C20" fill-opacity="1" text-anchor="start">实际大小预览（圆环高度 32dp，3.5 倍密度约 112px）</text>
+<rect x="60" y="985" width="1840" height="150" rx="28" fill="url(#wall)"/>
+<g transform="translate(230 1060) scale(0.3500) translate(-200 -200)">
+<g id="pva-battery">
+<path id="pva-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pva-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 51.99,181.83" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pva-number">
+<text id="pva-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">80</text>
+</g>
+<g id="pva-center">
+<path id="pva-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="pva-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="pva-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<g id="pva-wifi2">
+<path id="pva-wifi2-1" d="M312.00,118.40 L300.46,106.86 A16.32,16.32 0 0 1 323.54,106.86 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="pva-wifi2-2" d="M292.65,99.05 A27.36,27.36 0 0 1 331.35,99.05" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="8.64" stroke-linecap="round"/>
+<path id="pva-wifi2-3" d="M281.11,87.51 A43.68,43.68 0 0 1 342.89,87.51" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="8.64" stroke-linecap="round"/>
+</g>
+<g id="pva-sim1-ring">
+<path id="pva-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="pva-sim2-ring">
+<path id="pva-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pva-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="300" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+<g transform="translate(530 1060) scale(0.3500) translate(-200 -200)">
+<g id="pvb-battery">
+<path id="pvb-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pvb-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 139.59,336.33" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pvb-number">
+<text id="pvb-number-text" x="116.95" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">46</text>
+<path id="pvb-bolt-1" d="M245.26,17.01 L222.09,56.30 L237.94,56.30 L234.69,84.75 L258.67,44.11 L242.82,44.11 Z" fill="#FFFFFF"/>
+<path id="pvb-bolt-2" d="M267.61,17.01 L244.44,56.30 L260.29,56.30 L257.04,84.75 L281.02,44.11 L265.17,44.11 Z" fill="#FFFFFF"/>
+</g>
+<g id="pvb-center">
+<path id="pvb-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="pvb-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="pvb-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<g id="pvb-sim1-ring">
+<path id="pvb-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvb-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvb-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvb-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="600" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+<g transform="translate(830 1060) scale(0.3500) translate(-200 -200)">
+<g id="pvc-battery">
+<path id="pvc-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pvc-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 73.13,278.36" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pvc-number">
+<text id="pvc-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">62</text>
+</g>
+<g id="pvc-center">
+<text id="pvc-type" x="240.32" y="241.07" text-anchor="middle" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="137.20" fill="#FFFFFF" transform="translate(240.32 0) scale(0.920 1) translate(-240.32 0)">5G</text>
+</g>
+<g id="pvc-sim1-ring">
+<path id="pvc-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="pvc-sim2-ring">
+<path id="pvc-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvc-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="900" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+<g transform="translate(1130 1060) scale(0.3500) translate(-200 -200)">
+<g id="pvd-battery">
+<path id="pvd-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pvd-battery-level" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pvd-number">
+<text id="pvd-number-text" x="129.44" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="141.12" lengthAdjust="spacingAndGlyphs">100</text>
+</g>
+<g id="pvd-center">
+<path id="pvd-airplane" d="M209.28,112.96 L221.26,123.71 L221.26,169.79 L291.46,205.12 L291.46,222.02 L221.26,200.51 L221.26,235.84 L245.23,251.20 L245.23,263.49 L209.28,254.27 L173.33,263.49 L173.33,251.20 L197.30,235.84 L197.30,200.51 L127.10,222.02 L127.10,205.12 L197.30,169.79 L197.30,123.71 Z" fill="#FFFFFF"/>
+</g>
+</g>
+<text x="1200" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+<g transform="translate(1430 1060) scale(0.3500) translate(-200 -200)">
+<g id="pve-battery">
+<path id="pve-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pve-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 199.35,349.12" fill="none" stroke="#FFFFFF" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pve-number">
+<text id="pve-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">35</text>
+</g>
+<g id="pve-center">
+<path id="pve-wifi-1" d="M248.64,262.08 L214.79,228.23 A47.87,47.87 0 0 1 282.49,228.23 Z" fill="#FFFFFF" fill-opacity="1"/>
+<path id="pve-wifi-2" d="M191.89,205.33 A80.26,80.26 0 0 1 305.39,205.33" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+<path id="pve-wifi-3" d="M158.04,171.48 A128.13,128.13 0 0 1 339.24,171.48" fill="none" stroke="#FFFFFF" stroke-opacity="1" stroke-width="25.34" stroke-linecap="round"/>
+</g>
+<path id="pve-airplane-small" d="M147.20,216.32 L152.58,221.70 L152.58,244.74 L184.06,262.40 L184.06,270.85 L152.58,260.10 L152.58,277.76 L163.33,285.44 L163.33,291.58 L147.20,286.98 L131.07,291.58 L131.07,285.44 L141.82,277.76 L141.82,260.10 L110.34,270.85 L110.34,262.40 L141.82,244.74 L141.82,221.70 Z" fill="#FFFFFF"/>
+</g>
+<text x="1500" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+<g transform="translate(1730 1060) scale(0.3500) translate(-200 -200)">
+<g id="pvf-battery">
+<path id="pvf-battery-track" d="M344.04,238.60 A149.12,149.12 0 1 1 104.15,85.77" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="21.76" stroke-linecap="round"/>
+<path id="pvf-battery-level" d="M344.04,238.60 A149.12,149.12 0 0 1 301.22,309.50" fill="none" stroke="#FF3B30" stroke-width="21.76" stroke-linecap="round"/>
+</g>
+<g id="pvf-number">
+<text id="pvf-number-text" x="152.96" y="79.10" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="700" font-size="78.40" fill="#FFFFFF" textLength="94.08" lengthAdjust="spacingAndGlyphs">15</text>
+</g>
+<g id="pvf-center">
+</g>
+<g id="pvf-sim1-ring">
+<path id="pvf-sim1-seg1" d="M212.69,320.71 A121.38,121.38 0 0 1 163.96,315.90" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim1-seg2" d="M137.05,303.77 A121.38,121.38 0 0 1 101.17,270.46" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim1-seg3" d="M87.08,244.51 A121.38,121.38 0 0 1 78.68,196.28" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim1-seg4" d="M83.17,167.10 A121.38,121.38 0 0 1 105.67,123.62" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+<g id="pvf-sim2-ring">
+<path id="pvf-sim2-seg1" d="M209.96,294.74 A95.26,95.26 0 0 1 176.31,292.27" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim2-seg2" d="M149.24,280.61 A95.26,95.26 0 0 1 124.32,257.86" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim2-seg3" d="M110.26,231.96 A95.26,95.26 0 0 1 104.75,198.67" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+<path id="pvf-sim2-seg4" d="M109.71,169.62 A95.26,95.26 0 0 1 125.97,140.05" fill="none" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="18.50" stroke-linecap="round"/>
+</g>
+</g>
+<text x="1800" y="1071" font-family="vivo Sans, HarmonyOS Sans SC, Roboto, Arial, sans-serif" font-weight="600" font-size="30" fill="#FFFFFF">13:52</text>
+</g>
+<g id="layer-spec" inkscape:groupmode="layer" inkscape:label="参数说明">
+<text x="60" y="1190" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="22" font-weight="700" fill="#1C1C20" fill-opacity="1" text-anchor="start">参数（D = 圆环高度，sw = 线宽 = 0.068·D）</text>
+<text x="60" y="1222" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#1C1C20" fill-opacity="0.75" text-anchor="start">电量环 r = D/2 − sw/2，15°~230°；信号环线宽 0.85·sw、环间空隙 0.35·sw，84°~219°，每环 4 段，段间空隙 0.6 × 信号环线宽；数字字号 0.245·D</text>
+<text x="60" y="1254" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#1C1C20" fill-opacity="0.75" text-anchor="start">主 Wi-Fi 大小 0.44·D，中心在圆心右 0.15·D、上 0.03·D；副 Wi-Fi 大小 0.15·D，中心在圆心右 0.35·D、上 0.33·D（压在电量环开口上，约 317°）</text>
+<text x="60" y="1286" font-family="HarmonyOS Sans SC, vivo Sans, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#1C1C20" fill-opacity="0.75" text-anchor="start">4G / 5G 字号 0.43·D、横向 0.92，中心在圆心右 0.13·D；飞行模式隐藏信号环，未连 Wi-Fi 时飞机 0.54·D × 0.48·D 放在圆环中间，连着 Wi-Fi 时小飞机 0.24·D 放在左下内侧</text>
+</g></svg>

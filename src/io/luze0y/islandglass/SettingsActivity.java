@@ -371,8 +371,10 @@ public class SettingsActivity extends Activity {
         c.toggle("网速", "上下行合计，每秒刷新", "persist.land.sb_capsule_speed", "1");
         c.toggle("电池温度", "显示在网速右侧；左侧保留系统时钟时显示在网速下方", "persist.land.sb_capsule_temp", "1");
         c.toggle("电量着色", "圆环电量：充电绿色、省电黄色、20% 以下红色", "persist.land.sb_capsule_color", "0");
+        c.segmented("圆环样式", "圆环：信号点在底部；三层环：电量环里两圈信号环；双侧点：信号点分列圆环两侧",
+                "persist.land.sb_capsule_style", "1", new String[]{"1", "2", "3"}, new String[]{"圆环", "三层环", "双侧点"});
         c.slider("文字大小", "倍数", "persist.land.sb_capsule_text", "1", 0.6f, 1.4f, 0.05f, false, 2);
-        c.slider("圆环高度", "单位 dp，最大 35；顶部数字与底部信号点跟着缩放", "persist.land.sb_capsule_ring", "32", 16f, 35f, 1f, false, 0);
+        c.slider("圆环高度", "单位 dp，最大 35；电量数字与信号点跟着缩放", "persist.land.sb_capsule_ring", "32", 16f, 35f, 1f, false, 0);
 
         heading("玻璃", true);
         c = card();
@@ -392,8 +394,11 @@ public class SettingsActivity extends Activity {
         c.slider("边缘高光强度", "0 为不画", "persist.land.sb_capsule_light", "0.5", 0f, 1f, 0.05f, false, 2);
         c.slider("边缘高光宽度", "单位 px", "persist.land.sb_capsule_light_w", "2", 0f, 8f, 1f, false, 0);
 
-        footer("右侧圆环：外圈为电量，顶部为电量数字（充电时旁边显示闪电，快充为双闪电），中间为当前网络（Wi-Fi 或 4G / 5G），"
-                + "底部每排点为一张卡的信号。飞行模式时飞机显示在圆环中间，连着 Wi-Fi 时移到底部；Wi-Fi 与移动数据都未连接时中间留空。"
+        footer("右侧圆环：外圈为电量，顶部为电量数字（充电时旁边显示闪电，快充为双闪电），中间为当前网络（Wi-Fi 或 4G / 5G）。"
+                + "圆环样式：底部每排点为一张卡的信号，飞行模式时飞机在中间，连着 Wi-Fi 时移到底部。"
+                + "三层环：电量环里第二圈为卡 1、第三圈为卡 2 的信号，副 Wi-Fi 在右上。"
+                + "双侧点：左右两组点分别为卡 1、卡 2 的信号，双 Wi-Fi 时两个图标并排。"
+                + "后两种样式在飞行模式下隐藏信号，飞机与 Wi-Fi 一起排在中间。Wi-Fi 与移动数据都未连接时中间留空。"
                 + "文字与圆环靠右排列、大小不变，原子岛展开时整体向右让出位置。蓝牙、闹钟等其他图标保持系统原样。"
                 + "只作用于桌面和应用里的顶部状态栏。修改即时生效。");
     }

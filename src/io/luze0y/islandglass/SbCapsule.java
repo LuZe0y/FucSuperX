@@ -89,6 +89,7 @@ import io.github.libxposed.api.XposedModule;
  *     sb_capsule_speed 显示网速   sb_capsule_temp 显示电池温度
  *   sb_capsule_color 电量着色（充电绿 / 省电黄 / 低电红）           sb_capsule_text 文字大小倍数
  *   sb_capsule_h 玻璃长胶囊大小（高度）dp，中心对齐原子岛（不影响内容）   sb_capsule_ring 圆环高度 dp（最大 35）
+ *   sb_capsule_style 圆环样式：1 圆环（底部信号点）/ 2 三层环 / 3 双侧点
  *   sb_capsule_tone auto / dark / light   sb_capsule_tint 底色浓度   sb_capsule_blur 模糊半径   sb_capsule_sat 饱和度
  *   sb_capsule_alpha 整体不透明度   sb_capsule_refr / _refr_r 折射强度 / 范围   sb_capsule_light / _light_w 边缘高光强度 / 宽度
  */
@@ -113,6 +114,7 @@ final class SbCapsule {
     private final XposedModule module;
     private volatile boolean on = true, glassOn = false, hideClock = false, showSpeed = true, showTemp = true, colorful = false;
     private volatile String tone = "auto";
+    private volatile int style = 1; // 圆环样式：1 圆环 / 2 三层环 / 3 双侧点
     /** 内容（文字与圆环）区域高度 dp：固定，文字字号按它计算，与玻璃高度无关。 */
     private static final float CONTENT_DP = 40f;
     private volatile float hDp = 32, ringDp = 32, textK = 1f;
@@ -263,6 +265,8 @@ final class SbCapsule {
         colorful = flag("sb_capsule_color", false);
         String t = Conf.get("persist.land.sb_capsule_tone", "auto").trim();
         tone = "dark".equals(t) || "light".equals(t) ? t : "auto";
+        String sty = Conf.get("persist.land.sb_capsule_style", "1").trim();
+        style = "2".equals(sty) ? 2 : "3".equals(sty) ? 3 : 1;
         hDp = num("sb_capsule_h", 32f, 20f, 48f);
         ringDp = num("sb_capsule_ring", 32f, 16f, 35f);
         textK = num("sb_capsule_text", 1f, 0.6f, 1.4f);
@@ -734,6 +738,10 @@ final class SbCapsule {
         private boolean charging, quick, powerSave, airplane;
         private int net = NET_NONE, wifiArcs = 3, dds = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
         private final List<Sim> sims = new ArrayList<>();
+        // 所有已连接的 Wi-Fi 网络（双 WLAN 时为两个）：网络 → 信号格数；副 Wi-Fi 为默认网络以外的那个
+        private final java.util.Map<Network, Integer> wifiNets = new java.util.HashMap<>();
+        private Network defNet;
+        private int wifi2 = -1; // 副 Wi-Fi 信号格数，没有副 Wi-Fi 时为 -1
 
         // 几何（本视图坐标）。左侧文字区自然宽度 Lw（含内边距与到圆环的间距），圆环区宽度 Rw（不缩放）
         private float H, padL, leftW, gapL, sw, r, ringPadL, ringPadR, Lw, Rw, capTime, capSmall, capNum;
@@ -797,14 +805,55 @@ final class SbCapsule {
         private final ConnectivityManager.NetworkCallback netCb = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onCapabilitiesChanged(Network n, NetworkCapabilities nc) {
+                defNet = n;
                 onCaps(nc);
+                updateWifi2();
             }
 
             @Override
             public void onLost(Network n) {
+                defNet = null;
                 onCaps(null);
+                updateWifi2();
             }
         };
+
+        /** 监听所有 Wi-Fi 网络（含双 WLAN 的第二个），用来画副 Wi-Fi。 */
+        private final ConnectivityManager.NetworkCallback wifiCb = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onCapabilitiesChanged(Network n, NetworkCapabilities nc) {
+                Integer old = wifiNets.get(n);
+                int a = old == null ? 3 : old;
+                if (nc.getTransportInfo() instanceof WifiInfo) {
+                    int rssi = ((WifiInfo) nc.getTransportInfo()).getRssi();
+                    if (rssi != Integer.MIN_VALUE && rssi > -127) a = arcsFor(rssi);
+                }
+                wifiNets.put(n, a);
+                updateWifi2();
+            }
+
+            @Override
+            public void onLost(Network n) {
+                wifiNets.remove(n);
+                updateWifi2();
+            }
+        };
+
+        private void updateWifi2() {
+            int w = -1;
+            if (wifiNets.size() >= 2) {
+                for (java.util.Map.Entry<Network, Integer> en : wifiNets.entrySet()) {
+                    if (!en.getKey().equals(defNet)) {
+                        w = en.getValue();
+                        break;
+                    }
+                }
+            }
+            if (w != wifi2) {
+                wifi2 = w;
+                if (style != 1) invalidate();
+            }
+        }
 
         private final SubscriptionManager.OnSubscriptionsChangedListener subL =
                 new SubscriptionManager.OnSubscriptionsChangedListener() {
@@ -904,6 +953,7 @@ final class SbCapsule {
             } catch (Throwable t) {
                 Log.w(TAG, "sb capsule network callback failed", t);
             }
+            registerWifi(c);
             try {
                 c.getSystemService(SubscriptionManager.class).addOnSubscriptionsChangedListener(c.getMainExecutor(), subL);
             } catch (Throwable t) {
@@ -930,6 +980,12 @@ final class SbCapsule {
             } catch (Throwable ignored) {
             }
             try {
+                c.getSystemService(ConnectivityManager.class).unregisterNetworkCallback(wifiCb);
+            } catch (Throwable ignored) {
+            }
+            wifiNets.clear();
+            wifi2 = -1;
+            try {
                 c.getSystemService(SubscriptionManager.class).removeOnSubscriptionsChangedListener(subL);
             } catch (Throwable ignored) {
             }
@@ -943,6 +999,26 @@ final class SbCapsule {
             super.onConfigurationChanged(cfg);
             updateTime();
             requestLayout();
+        }
+
+        /** 双 WLAN 的第二个网络可能没有默认能力（如受限），先去掉默认能力再按 Wi-Fi 监听，失败则用默认请求。 */
+        private void registerWifi(Context c) {
+            ConnectivityManager cm = c.getSystemService(ConnectivityManager.class);
+            if (cm == null) return;
+            try {
+                android.net.NetworkRequest req = new android.net.NetworkRequest.Builder().clearCapabilities()
+                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build();
+                cm.registerNetworkCallback(req, wifiCb, MAIN);
+                return;
+            } catch (Throwable t) {
+                Log.w(TAG, "sb capsule wifi listen (all) failed, fallback", t);
+            }
+            try {
+                cm.registerNetworkCallback(new android.net.NetworkRequest.Builder()
+                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCb, MAIN);
+            } catch (Throwable t) {
+                Log.w(TAG, "sb capsule wifi listen failed", t);
+            }
         }
 
         private void readAirplane() {
@@ -1242,38 +1318,183 @@ final class SbCapsule {
             return fg;
         }
 
+        /** 圆环样式：1 圆环（底部信号点）/ 2 三层环（电量环内两圈信号环）/ 3 双侧点（信号点分列两侧）。 */
         private void drawRing(Canvas c, int track) {
-            float cx = ringCx(), cy = H / 2f;
-            int lit = litColor();
+            if (style == 2) drawRing2(c, track);
+            else if (style == 3) drawRing3(c, track);
+            else drawRing1(c, track);
+        }
 
-            // 底部：信号点，每张卡一排，压在圆环底部的缺口里
-            int rows = airplane ? 0 : sims.size();
-            float dot = sw * 1.0f, step = dot * 1.8f, rowD = dot * 1.05f;
-            // 信号点上移：最下面一排的下沿与圆环外沿齐平，不再伸出圆环
-            float dotY = cy + r - sw * (rows == 2 ? 1.05f : 0.5f);
-            // 飞行模式：连着 Wi-Fi 时飞机放在信号点位置、环内照常画 Wi-Fi；没有 Wi-Fi 时飞机放进环中心
-            float rin = r - sw * 1.3f;
-            boolean planeBottom = airplane && net == NET_WIFI;
-            float plane = planeBottom ? sw * 4.4f : rin * 1.45f;
-            float gb = planeBottom ? deg((plane * 0.5f + sw * 0.9f) / r)
-                    : rows == 0 ? 20f : deg((1.5f * step + dot / 2f + sw * 1.3f) / r);
+        /** 当前数据卡的网络制式（4G / 5G 等），没有时为空串。 */
+        private String cellType() {
+            String t = "";
+            for (Sim m : sims) if (m.subId == dds) t = m.type;
+            if (t.isEmpty() && !sims.isEmpty()) t = sims.get(0).type;
+            return t;
+        }
 
-            // 外圈：整圈（除底部缺口）表示电量
-            float s = 90f + gb, e = 450f - gb, total = e - s;
-            float litEnd = level <= 0 ? s : s + total * Math.min(1f, level / 100f);
+        /** 只有连着 Wi-Fi 时才显示副 Wi-Fi。 */
+        private boolean dualWifi() {
+            return net == NET_WIFI && wifi2 >= 0;
+        }
+
+        private void fillPlane(Canvas c, float x, float y, float w, float h) {
+            planePath(x, y, w, h);
+            pFill.setColor(fg);
+            c.drawPath(path, pFill);
+        }
+
+        /**
+         * 样式 2：第一层电量环（15° 起顺时针经底部到 230°），里面第二 / 三层为卡 1 / 卡 2 的信号环（84°~219°，每环 4 段，
+         * 自下而上 1→4 格）；主图标在圆心右上，副 Wi-Fi 压在右上开口。尺寸见 docs/design/ring_style2_t4。
+         */
+        private void drawRing2(Canvas c, int track) {
+            float cx = ringCx(), cy = H / 2f, D = 2f * r + sw;
+            oval.set(cx - r, cy - r, cx + r, cy + r);
+            pStroke.setStrokeWidth(sw);
+            float s = 15f, e = 230f;
+            arc(c, s, e, track);
+            if (level > 0) arc(c, s, s + (e - s) * Math.min(1f, level / 100f), litColor());
+            drawNumber(c, cx, cy - r);
+
+            float iy = cy - D * 0.026f;
+            if (net == NET_WIFI) {
+                wifiAt(c, cx + D * 0.152f, iy, D * 0.44f, 0.18f, wifiArcs, track);
+            } else if (net == NET_CELL) {
+                String t = cellType();
+                if (!t.isEmpty()) typeAt(c, t, cx + D * 0.126f, iy, D * 0.429f, 0.92f, D * 0.5f);
+            } else if (airplane) {
+                float w = D * 0.535f, h = D * 0.48f;
+                fillPlane(c, cx + D * 0.029f - w / 2f, cy - D * 0.032f - h / 2f, w, h);
+            } // Wi-Fi 与移动数据都没有连接：留空
+            if (dualWifi()) wifiAt(c, cx + D * 0.35f, cy - D * 0.33f, D * 0.15f, 0.18f, wifi2, track);
+
+            if (airplane) { // 飞行模式不画信号环；连着 Wi-Fi 时小飞机放在左下
+                if (net == NET_WIFI) {
+                    float ps = D * 0.24f;
+                    fillPlane(c, cx - D * 0.165f - ps / 2f, cy + D * 0.171f - ps / 2f, ps, ps);
+                }
+                return;
+            }
+            float ssw = sw * 0.85f, gap = sw * 0.35f;
+            float r1 = r - sw / 2f - gap - ssw / 2f, r2 = r1 - ssw - gap;
+            pStroke.setStrokeWidth(ssw);
+            for (int i = 0; i < Math.min(2, sims.size()); i++) {
+                Sim m = sims.get(i);
+                float rr = i == 0 ? r1 : r2;
+                int lv = m.inService ? m.lv : 0;
+                oval.set(cx - rr, cy - rr, cx + rr, cy + rr);
+                float g = (float) Math.toDegrees(ssw * 1.6f / rr); // 段间可见空隙 0.6 × 线宽（圆头各伸出半个线宽）
+                float seg = (219f - 84f - 3f * g) / 4f;
+                for (int k = 0; k < 4; k++) {
+                    float a0 = 84f + k * (seg + g);
+                    arc(c, a0, a0 + seg, k < lv ? fg : track);
+                }
+            }
+            pStroke.setStrokeWidth(sw);
+        }
+
+        /**
+         * 样式 3：电量圆环只在顶部为电量数字留缺口；两组信号点排成左右对称的括号形（左卡 1、右卡 2）。
+         * 双 Wi-Fi 时两个图标整体居中；飞行模式 + Wi-Fi 对角对称；飞行模式 + 双 Wi-Fi 三角排列。尺寸见 docs/design/ring_style3_t4。
+         */
+        private void drawRing3(Canvas c, int track) {
+            float cx = ringCx(), cy = H / 2f, D = 2f * r + sw;
+            float g = deg((numGroupW() / 2f + sw * 1.2f) / r);
+            float s = 270f + g, e = 630f - g;
             oval.set(cx - r, cy - r, cx + r, cy + r);
             pStroke.setStrokeWidth(sw);
             arc(c, s, e, track);
-            arc(c, s, litEnd, lit);
+            if (level > 0) arc(c, s, s + (e - s) * Math.min(1f, level / 100f), litColor());
+            drawNumber(c, cx, cy - r);
 
-            // 顶部：电量数字 + 充电闪电，压在圆环上，只在字形周围抠出空隙
+            boolean two = dualWifi();
+            float a3 = D * 0.3125f;
+            if (net == NET_WIFI) {
+                float ox = 0f, oy = 0f, ms = a3;
+                if (airplane && two) {
+                    oy = -0.095f;
+                    ms = D * 0.27f;
+                } else if (airplane) {
+                    ox = 0.108f;
+                    oy = -0.108f;
+                } else if (two) {
+                    ox = 0.025f;
+                    oy = -0.018f;
+                }
+                wifiAt(c, cx + ox * D, cy + oy * D, ms, 0.2f, wifiArcs, track);
+                if (two) {
+                    if (airplane) wifiAt(c, cx + D * 0.15f, cy + D * 0.13f, D * 0.165f, 0.2f, wifi2, track);
+                    else wifiAt(c, cx - D * 0.163f, cy + D * 0.095f, D * 0.1234f, 0.2f, wifi2, track);
+                }
+                if (airplane) {
+                    float ps = (two ? 0.21f : 0.25f) * D;
+                    float px = cx + (two ? -0.15f : -0.108f) * D, py = cy + (two ? 0.13f : 0.108f) * D;
+                    fillPlane(c, px - ps / 2f, py - ps / 2f, ps, ps);
+                }
+            } else if (net == NET_CELL) {
+                String t = cellType();
+                if (!t.isEmpty()) typeAt(c, t, cx, cy, D * 0.282f, 1f, D * 0.5f);
+            } else if (airplane) {
+                float ps = a3 * 1.15f;
+                fillPlane(c, cx - ps / 2f, cy - ps / 2f, ps, ps);
+            } // Wi-Fi 与移动数据都没有连接：留空
+            if (airplane) return; // 飞行模式不画信号点
+
+            float dot = sw * 1.31f, da = D * 0.456f, de = D * 0.1125f;
+            float[] ang = {34.5f, 11.5f, -11.5f, -34.5f}; // 自下而上 1→4 格
+            for (int i = 0; i < Math.min(2, sims.size()); i++) {
+                Sim m = sims.get(i);
+                int lv = m.inService ? m.lv : 0;
+                float ccx = cx + (i == 0 ? de : -de); // 左组弧心在右、右组弧心在左，呈括号形
+                for (int k = 0; k < 4; k++) {
+                    double t = Math.toRadians(i == 0 ? 180f - ang[k] : ang[k]);
+                    pFill.setColor(k < lv ? fg : track);
+                    c.drawCircle(ccx + da * (float) Math.cos(t), cy + da * (float) Math.sin(t), dot / 2f, pFill);
+                }
+            }
+        }
+
+        /** Wi-Fi 图标：扇形 + 两道弧，中心 (ix, iy)，size 为最外弧半径，线宽 size × wsK。 */
+        private void wifiAt(Canvas c, float ix, float iy, float size, float wsK, int arcs, int track) {
+            float ws = size * wsK, oy = iy + size * 0.5f;
+            float a1 = size * 0.34f, a2 = size * 0.66f - ws / 2f, a3c = size - ws / 2f;
+            path.reset();
+            path.moveTo(ix, oy);
+            oval.set(ix - a1, oy - a1, ix + a1, oy + a1);
+            path.arcTo(oval, 225f, 90f);
+            path.close();
+            pFill.setColor(arcs >= 1 ? fg : track);
+            c.drawPath(path, pFill);
+            pStroke.setStrokeWidth(ws);
+            oval.set(ix - a2, oy - a2, ix + a2, oy + a2);
+            arc(c, 225f, 315f, arcs >= 2 ? fg : track);
+            oval.set(ix - a3c, oy - a3c, ix + a3c, oy + a3c);
+            arc(c, 225f, 315f, arcs >= 3 ? fg : track);
+            pStroke.setStrokeWidth(sw);
+        }
+
+        /** 网络制式文字，以 (x, y) 为中心；宽度超过 maxW 时缩小字号。 */
+        private void typeAt(Canvas c, String t, float x, float y, float size, float scaleX, float maxW) {
+            pType.setTextSize(size);
+            pType.setTextScaleX(scaleX);
+            float w = pType.measureText(t);
+            if (w > maxW && w > 0) pType.setTextSize(size * maxW / w);
+            pType.getTextBounds(t, 0, t.length(), bounds);
+            pType.setColor(fg);
+            c.drawText(t, x, y + bounds.height() / 2f, pType);
+            pType.setTextScaleX(1f);
+        }
+
+        /** 电量数字 + 充电闪电，字形竖直中心在 numCy；先在字形周围抠出空隙（压在圆环上时环线断开）。 */
+        private void drawNumber(Canvas c, float cx, float numCy) {
             String num = level < 0 ? "" : String.valueOf(level);
             if (!num.isEmpty()) {
                 float numW = pNum.measureText(num);
                 float boltH = capNum * 1.2f, boltW = boltH * 0.6f, boltGap = capNum * 0.16f;
                 float boltsW = !charging ? 0 : quick ? boltW * 1.55f : boltW;
                 float groupW = numW + (charging ? boltGap + boltsW : 0);
-                float x = cx - groupW / 2f, numCy = cy - r, base = numCy + capNum / 2f;
+                float x = cx - groupW / 2f, base = numCy + capNum / 2f;
                 float halo = sw * 1.5f;
                 float bx = x + numW + boltGap, by = numCy - boltH / 2f, bx2 = bx + boltW * 0.55f;
                 pClear.setStrokeWidth(halo * 2f);
@@ -1301,6 +1522,43 @@ final class SbCapsule {
                     }
                 }
             }
+        }
+
+        /** 电量数字 + 充电闪电的总宽度（没有电量时为 0）。 */
+        private float numGroupW() {
+            if (level < 0) return 0f;
+            float numW = pNum.measureText(String.valueOf(level));
+            float boltH = capNum * 1.2f, boltW = boltH * 0.6f, boltGap = capNum * 0.16f;
+            float boltsW = !charging ? 0 : quick ? boltW * 1.55f : boltW;
+            return numW + (charging ? boltGap + boltsW : 0);
+        }
+
+        /** 样式 1：整圈电量（底部留缺口放信号点），顶部电量数字压在环上，环内为当前网络。 */
+        private void drawRing1(Canvas c, int track) {
+            float cx = ringCx(), cy = H / 2f;
+            int lit = litColor();
+
+            // 底部：信号点，每张卡一排，压在圆环底部的缺口里
+            int rows = airplane ? 0 : sims.size();
+            float dot = sw * 1.0f, step = dot * 1.8f, rowD = dot * 1.05f;
+            // 信号点上移：最下面一排的下沿与圆环外沿齐平，不再伸出圆环
+            float dotY = cy + r - sw * (rows == 2 ? 1.05f : 0.5f);
+            // 飞行模式：连着 Wi-Fi 时飞机放在信号点位置、环内照常画 Wi-Fi；没有 Wi-Fi 时飞机放进环中心
+            float rin = r - sw * 1.3f;
+            boolean planeBottom = airplane && net == NET_WIFI;
+            float plane = planeBottom ? sw * 4.4f : rin * 1.45f;
+            float gb = planeBottom ? deg((plane * 0.5f + sw * 0.9f) / r)
+                    : rows == 0 ? 20f : deg((1.5f * step + dot / 2f + sw * 1.3f) / r);
+
+            // 外圈：整圈（除底部缺口）表示电量
+            float s = 90f + gb, e = 450f - gb, total = e - s;
+            float litEnd = level <= 0 ? s : s + total * Math.min(1f, level / 100f);
+            oval.set(cx - r, cy - r, cx + r, cy + r);
+            pStroke.setStrokeWidth(sw);
+            arc(c, s, e, track);
+            arc(c, s, litEnd, lit);
+
+            drawNumber(c, cx, cy - r);
 
             // 环内：当前网络
             float ri = r - sw * 1.3f;
@@ -1335,12 +1593,17 @@ final class SbCapsule {
 
         /** 机头朝上的飞机（边长 s 的正方形内）。 */
         private void planePath(float x, float y, float s) {
+            planePath(x, y, s, s);
+        }
+
+        /** 机头朝上的飞机（宽 w、高 h 的矩形内）。 */
+        private void planePath(float x, float y, float w, float h) {
             float[] p = {0.50f, 0.00f, 0.57f, 0.07f, 0.57f, 0.37f, 0.98f, 0.60f, 0.98f, 0.71f, 0.57f, 0.57f,
                     0.57f, 0.80f, 0.71f, 0.90f, 0.71f, 0.98f, 0.50f, 0.92f, 0.29f, 0.98f, 0.29f, 0.90f,
                     0.43f, 0.80f, 0.43f, 0.57f, 0.02f, 0.71f, 0.02f, 0.60f, 0.43f, 0.37f, 0.43f, 0.07f};
             path.reset();
-            path.moveTo(x + p[0] * s, y + p[1] * s);
-            for (int i = 2; i < p.length; i += 2) path.lineTo(x + p[i] * s, y + p[i + 1] * s);
+            path.moveTo(x + p[0] * w, y + p[1] * h);
+            for (int i = 2; i < p.length; i += 2) path.lineTo(x + p[i] * w, y + p[i + 1] * h);
             path.close();
         }
 
@@ -1364,22 +1627,7 @@ final class SbCapsule {
 
         /** Wi-Fi：扇形 + 两道弧，按信号点亮；arcs = 0 时全部暗色（无网络）。 */
         private void drawWifi(Canvas c, float cx, float cy, float ri, int arcs, int track) {
-            float a3 = ri * 1.3f / 1.414f, ws = a3 * 0.2f;
-            float oy = cy + a3 * 0.5f;
-            float a1 = a3 * 0.34f, a2 = a3 * 0.66f - ws / 2f, a3c = a3 - ws / 2f;
-            path.reset();
-            path.moveTo(cx, oy);
-            oval.set(cx - a1, oy - a1, cx + a1, oy + a1);
-            path.arcTo(oval, 225f, 90f);
-            path.close();
-            pFill.setColor(arcs >= 1 ? fg : track);
-            c.drawPath(path, pFill);
-            pStroke.setStrokeWidth(ws);
-            oval.set(cx - a2, oy - a2, cx + a2, oy + a2);
-            arc(c, 225f, 315f, arcs >= 2 ? fg : track);
-            oval.set(cx - a3c, oy - a3c, cx + a3c, oy + a3c);
-            arc(c, 225f, 315f, arcs >= 3 ? fg : track);
-            pStroke.setStrokeWidth(sw);
+            wifiAt(c, cx, cy, ri * 1.3f / 1.414f, 0.2f, arcs, track);
         }
 
         private void drawType(Canvas c, String t, float cx, float cy, float ri) {
