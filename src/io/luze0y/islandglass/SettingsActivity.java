@@ -46,8 +46,8 @@ public class SettingsActivity extends Activity {
     private static final PathInterpolator EASE_SWITCH = new PathInterpolator(0.2f, 0f, 0.1f, 1f);
 
     static final String EXTRA_PAGE = "page", PAGE_ISLAND = "island", PAGE_SYSGLASS = "sysglass", PAGE_NC = "nc",
-            PAGE_COPY = "copy";
-    private boolean dark, island, sysglass, nc;
+            PAGE_SB = "sb", PAGE_COPY = "copy";
+    private boolean dark, island, sysglass, nc, sb;
     private int cBg, cCard, cTitle, cSummary, cHeading, cDivider, cAccent, cTrackOff, cRingOff, cPress, cChevron, cCircle, cIcon;
 
     private FrameLayout frame;
@@ -76,6 +76,7 @@ public class SettingsActivity extends Activity {
         island = PAGE_ISLAND.equals(getIntent().getStringExtra(EXTRA_PAGE));
         sysglass = PAGE_SYSGLASS.equals(getIntent().getStringExtra(EXTRA_PAGE));
         nc = PAGE_NC.equals(getIntent().getStringExtra(EXTRA_PAGE));
+        sb = PAGE_SB.equals(getIntent().getStringExtra(EXTRA_PAGE));
         palette();
         Window w = getWindow();
         w.setStatusBarColor(Color.TRANSPARENT);
@@ -177,6 +178,7 @@ public class SettingsActivity extends Activity {
         else if (island) buildIsland();
         else if (sysglass) buildSysGlass();
         else if (nc) buildNc();
+        else if (sb) buildSb();
         else if (copyPage()) buildCopy();
         else buildMain();
     }
@@ -191,6 +193,8 @@ public class SettingsActivity extends Activity {
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SYSGLASS)));
         c.link("通知中心", "顶部时间、日期大号居中", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_NC)));
+        c.link("状态栏", "网速、信号、Wi-Fi 与电量合进右侧圆环，可加液态玻璃长胶囊", () ->
+                startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_SB)));
         c.link("抄作业", "一段分享码分享整套参数", () ->
                 startActivity(new Intent(this, SettingsActivity.class).putExtra(EXTRA_PAGE, PAGE_COPY)));
 
@@ -354,6 +358,46 @@ public class SettingsActivity extends Activity {
         footer("只改通知中心的字号和位置，控制中心不受影响。点按滑块右侧数值恢复默认。修改即时生效。");
     }
 
+    /** 「状态栏」页（状态栏胶囊）：自绘内容 + 独立的玻璃参数，不受「系统液态玻璃」页影响。 */
+    private void buildSb() {
+        boolean cp = copyBanner("sb");
+        heading("总开关", cp);
+        Card c = card();
+        c.toggle("状态栏胶囊", "隐藏原生网速、信号、Wi-Fi、飞行模式与电池图标，改为右侧的文字与圆环", "persist.land.sb_capsule", "1");
+
+        heading("内容", true);
+        c = card();
+        c.toggle("隐藏左侧时钟", "开启时时间显示在圆环左侧；关闭时左侧保留系统时钟", "persist.land.sb_capsule_clock_hide", "0");
+        c.toggle("网速", "上下行合计，每秒刷新", "persist.land.sb_capsule_speed", "1");
+        c.toggle("电池温度", "显示在网速右侧；左侧保留系统时钟时显示在网速下方", "persist.land.sb_capsule_temp", "1");
+        c.toggle("电量着色", "圆环电量：充电绿色、省电黄色、20% 以下红色", "persist.land.sb_capsule_color", "0");
+        c.slider("文字大小", "倍数", "persist.land.sb_capsule_text", "1", 0.6f, 1.4f, 0.05f, false, 2);
+        c.slider("圆环高度", "单位 dp，最大 35；顶部数字与底部信号点跟着缩放", "persist.land.sb_capsule_ring", "32", 16f, 35f, 1f, false, 0);
+
+        heading("玻璃", true);
+        c = card();
+        c.toggle("玻璃背景", "在整个状态栏下面垫一条液态玻璃长胶囊", "persist.land.sb_capsule_bg", "0");
+        c.slider("胶囊大小", "长胶囊的高度，单位 dp，最大为状态栏高度；竖直中心对齐原子岛，不影响文字和圆环", "persist.land.sb_capsule_h", "32", 20f, 48f, 1f, false, 0);
+        c.segmented("底色", "跟随：白色图标配深色底，深色图标配浅色底", "persist.land.sb_capsule_tone", "auto",
+                new String[]{"auto", "dark", "light"}, new String[]{"跟随", "深色", "浅色"});
+        c.slider("底色浓度", "0 为完全透明，1 为纯色", "persist.land.sb_capsule_tint", "0", 0f, 1f, 0.02f, false, 2);
+        c.slider("模糊半径", "0 为不模糊", "persist.land.sb_capsule_blur", "0", 0f, 0.3f, 0.005f, false, 3);
+        c.slider("饱和度", "越大背景颜色越鲜艳", "persist.land.sb_capsule_sat", "20", 0f, 60f, 1f, false, 0);
+        c.slider("整体不透明度", null, "persist.land.sb_capsule_alpha", "1", 0f, 1f, 0.05f, false, 2);
+
+        heading("高级参数", true);
+        c = card();
+        c.slider("折射强度", "0 为关闭", "persist.land.sb_capsule_refr", "300", 0f, 300f, 5f, false, 0);
+        c.slider("折射范围", "离边缘多少像素内发生折射", "persist.land.sb_capsule_refr_r", "24", 0f, 120f, 1f, false, 0);
+        c.slider("边缘高光强度", "0 为不画", "persist.land.sb_capsule_light", "0.5", 0f, 1f, 0.05f, false, 2);
+        c.slider("边缘高光宽度", "单位 px", "persist.land.sb_capsule_light_w", "2", 0f, 8f, 1f, false, 0);
+
+        footer("右侧圆环：外圈为电量，顶部为电量数字（充电时旁边显示闪电，快充为双闪电），中间为当前网络（Wi-Fi 或 4G / 5G），"
+                + "底部每排点为一张卡的信号。飞行模式时飞机显示在圆环中间，连着 Wi-Fi 时移到底部；Wi-Fi 与移动数据都未连接时中间留空。"
+                + "文字与圆环靠右排列、大小不变，原子岛展开时整体向右让出位置。蓝牙、闹钟等其他图标保持系统原样。"
+                + "只作用于桌面和应用里的顶部状态栏。修改即时生效。");
+    }
+
     static final String WRITE_FAIL = "写入失败：未连接 LSPosed 服务";
     private static final String K_NO_AUTOCHECK = "persist.land.updater_no_autocheck", UPDATER = "com.bbk.updater";
 
@@ -416,7 +460,7 @@ public class SettingsActivity extends Activity {
         heading("使用参数包", true);
         c = card();
         int[] cnt = packCounts();
-        boolean loaded = cnt[0] + cnt[1] + cnt[2] > 0;
+        boolean loaded = java.util.Arrays.stream(cnt).sum() > 0;
         String name = ui().getString(K_PACK_NAME, "");
         TextView st = valueText();
         st.setText(!loaded ? "未导入" : name.isEmpty() ? "已导入" : name);
@@ -809,7 +853,7 @@ public class SettingsActivity extends Activity {
         bl.leftMargin = dp(20);
         bar.addView(backBtn, bl);
 
-        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : nc ? "通知中心" : copyPage() ? "抄作业" : "FucSuperX", 18, cTitle, true);
+        TextView title = text(island ? "原子岛" : sysglass ? "系统液态玻璃" : nc ? "通知中心" : sb ? "状态栏" : copyPage() ? "抄作业" : "FucSuperX", 18, cTitle, true);
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL);
         tl.leftMargin = dp(68);
         tl.topMargin = dp(2); // 与系统 OriginUI 顶栏标题基线对齐

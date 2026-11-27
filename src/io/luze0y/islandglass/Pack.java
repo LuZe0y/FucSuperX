@@ -9,13 +9,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 「抄作业」参数包：原子岛 / 系统液态玻璃 / 通知中心三组可分享的参数（不含总开关、诊断日志、设置入口）。
+ * 「抄作业」参数包：原子岛 / 系统液态玻璃 / 通知中心 / 状态栏四组可分享的参数（不含总开关、诊断日志、设置入口）。
  *
  * 分享码是明文：「咕嘎」后面跟着与默认值不同的参数，每项写成 编号=值，用空格分隔，例如
  *   咕嘎 i7=0.05 s2=0.80 n2=2.40
- * 编号 = 分组字母（i 原子岛 / s 系统液态玻璃 / n 通知中心）+ 该参数在分组里的序号（从 1 开始，见 KEYS）。
+ * 编号 = 分组字母（i 原子岛 / s 系统液态玻璃 / n 通知中心 / b 状态栏）+ 该参数在分组里的序号（从 1 开始，见 KEYS）。
  * 没写出来的参数就是默认值，所以全部默认时分享码只有「咕嘎」两个字。
- * 一个参数包总是包含三个分组的全部参数。KEYS 的顺序就是编号：新增参数只能追加在所在分组末尾，
+ * 一个参数包总是包含所有分组的全部参数。KEYS 的顺序就是编号：新增参数只能追加在所在分组末尾，
  * 旧分享码里没有的新参数按默认值处理；不认识的编号（来自更新的版本）忽略并计数。
  *
  * 使用中的参数包存在远程偏好 pk_<键>；copy_<分组>=1 时 Conf.get / 模块界面对该分组的键优先取参数包里的值，
@@ -23,11 +23,11 @@ import java.util.regex.Pattern;
  */
 final class Pack {
     static final String PK = "pk_", MAGIC = "咕嘎";
-    static final String[] SECTIONS = {"island", "sysglass", "nc"};
-    static final String[] NAMES = {"原子岛", "系统液态玻璃", "通知中心"};
-    private static final char[] LETTERS = {'i', 's', 'n'};
+    static final String[] SECTIONS = {"island", "sysglass", "nc", "sb"};
+    static final String[] NAMES = {"原子岛", "系统液态玻璃", "通知中心", "状态栏"};
+    private static final char[] LETTERS = {'i', 's', 'n', 'b'};
     /** 分组的参数包状态变化时通知各模块用的代表键（各模块按键名前缀过滤订阅）。 */
-    private static final String[] TRIGGER = {"island_glass", "sysglass_tint", "nc_clock_scale"};
+    private static final String[] TRIGGER = {"island_glass", "sysglass_tint", "nc_clock_scale", "sb_capsule_tint"};
 
     /** 各分组可分享的键与默认值（与模块界面一致）。顺序即分享码编号，只能在末尾追加。 */
     static final String[][][] KEYS = {
@@ -48,6 +48,14 @@ final class Pack {
                     {"nc_land_side", "left"}, {"nc_top_blur", "1"},
                     {"nc_top_blur_ext", "40"}, {"nc_top_blur_fade", "60"},
                     {"nc_date_oneline", "1"},
+            },
+            {
+                    {"sb_capsule_h", "32"}, {"sb_capsule_ring", "32"},
+                    {"sb_capsule_tone", "auto"}, {"sb_capsule_tint", "0"}, {"sb_capsule_blur", "0"},
+                    {"sb_capsule_sat", "20"}, {"sb_capsule_alpha", "1"}, {"sb_capsule_refr", "300"},
+                    {"sb_capsule_refr_r", "24"}, {"sb_capsule_light", "0.5"}, {"sb_capsule_light_w", "2"},
+                    {"sb_capsule_clock_hide", "0"}, {"sb_capsule_speed", "1"}, {"sb_capsule_temp", "1"},
+                    {"sb_capsule_color", "0"}, {"sb_capsule_text", "1"}, {"sb_capsule_bg", "0"},
             },
     };
 

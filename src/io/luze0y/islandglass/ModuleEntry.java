@@ -113,6 +113,11 @@ public class ModuleEntry extends XposedModule {
             } catch (Throwable t) {
                 error("nc top blur install failed", t);
             }
+            try {
+                new SbCapsule(this).install(param.getClassLoader()); // 状态栏网速 / 信号 / Wi-Fi / 电池合进玻璃胶囊
+            } catch (Throwable t) {
+                error("sb capsule install failed", t);
+            }
         }
         if (UpdaterHook.PKG.equals(param.getPackageName()) && param.isFirstPackage()) {
             try {
@@ -313,6 +318,7 @@ public class ModuleEntry extends XposedModule {
                 if (!islandOn) return chain.proceed();
                 Object anim = chain.getThisObject();
                 updateDot(anim); // 先于原版绘制判定，让本帧 GlassPaint 就画对颜色
+                reportIslandCenter(anim); // 状态栏胶囊的玻璃竖直中心对齐原子岛
                 updateStroke(anim);
                 syncRegion(anim);           // 材质区域跟随胶囊：放在绘制前，与本帧胶囊形状同帧提交，避免玻璃落后一帧
                 Object r = chain.proceed();
@@ -546,6 +552,23 @@ public class ModuleEntry extends XposedModule {
                     + " trans=" + (mIsAppTransition == null ? "?" : mIsAppTransition.invoke(cap)));
         } catch (Throwable t) {
             Log.w(TAG, "syncRegion failed", t);
+        }
+    }
+
+    private final int[] islLoc = new int[2];
+
+    /** 收起的小胶囊 / 圆点的竖直中心（屏幕坐标）交给状态栏胶囊；展开的大岛不算。 */
+    private void reportIslandCenter(Object anim) {
+        try {
+            if (mGetDisplayRect == null || fContainer == null) return;
+            Object cap = fMainCapsule.get(anim);
+            View c = (View) fContainer.get(anim);
+            if (cap == null || c == null) return;
+            RectF r = (RectF) mGetDisplayRect.invoke(cap);
+            if (r == null || r.height() < 40f || r.height() > SMALL_MAX_H) return;
+            c.getLocationOnScreen(islLoc);
+            SbCapsule.reportIsland(islLoc[1] + r.centerY());
+        } catch (Throwable ignored) {
         }
     }
 

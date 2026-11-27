@@ -38,6 +38,7 @@ import io.github.libxposed.api.XposedModule;
  *    （NOTIFICATION_SHADE）或状态栏时保持系统原样，例如指纹验证弹窗（BiometricPrompt）、
  *    小窗 / 分屏菜单（Split ListPopMenu）、原子工作台 / 小窗常驻入口（RESIDENT_ENTRANCE）。仍记录原始调用，开关切换可实时生效。
  *    材质设置时 View 还没挂到窗口则先按普通处理，挂上窗口后判定需要排除再用原始参数重放一次。
+ * 7. 状态栏胶囊（SbCapsule）的背景视图与音量面板同样处理：它的参数由自己的页面独立调节。
  *
  * 键（远程偏好 / persist.land.*），倍数 1 = 系统原值：
  *   sysglass             1 开 / 0 关（关闭即完全不干预）
@@ -320,6 +321,7 @@ final class SystemGlass {
         try {
             Object vv = fView == null ? null : fView.get(impl);
             if (!(vv instanceof View)) return CAT_NORMAL;
+            if (SbCapsule.owns(vv)) return CAT_VOLUME; // 状态栏胶囊：参数完全独立，不套用倍数
             View v = (View) vv;
             if (!v.isAttachedToWindow()) {
                 watchAttach(impl, v);
